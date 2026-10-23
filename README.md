@@ -81,6 +81,7 @@ The end-to-end tests use a scratch data folder. They never touch `~/Documents/HU
 - Text is cut between lines at a page edge, like in Word: at least two lines stay at the bottom and two go to the next page (a three-line paragraph keeps two at the bottom, as Chromium does). This works for paragraphs of any length, lists (between items and between lines), and quotes.
 - Rows that share a merged cell (rowspan) always stay on one page.
 - The editor uses the page size that Chromium really lays out when it prints (a text column of 674 px). Lines wrap and pages break at the same words as in the PDF. `e2e/split.e2e.test.ts` checks this against real PDFs.
+- In a table, Return adds a row below, Shift+Return starts a new line in the cell, and Backspace or Delete in a completely empty row removes the row.
 - Known limit: a group of merged rows, or one table row, that is taller than a whole page cannot be kept on one page and runs over the page edge.
 
 ## App Modes
@@ -135,17 +136,22 @@ xattr -dr com.apple.quarantine /Applications/HUSK.app
 - There is no automatic update. Signed apps are needed for that.
 - If you ever pay for an Apple Developer account, set `identity` in the `build.mac` part of `package.json` and add notarization. Nothing else changes.
 
-### Releasing an update
+### Releasing an update (one command)
 
-1. Change `"version"` in `package.json` (for example `1.0.1`).
-2. Commit and push:
-   ```bash
-   git add -A && git commit -m "HUSK 1.0.1" && git push
-   ```
-3. Build: `pnpm package`
-4. Publish the files under a new tag:
-   ```bash
-   gh release create v1.0.1 release/HUSK-arm64.zip release/HUSK-x64.zip release/HUSK-arm64.dmg release/HUSK-x64.dmg release/SHA256SUMS --title "HUSK 1.0.1" --notes "What changed"
-   ```
-5. Tell people to run the install line again. It always downloads the newest release. Their documents in `~/Documents/HUSK` are not touched.
+```bash
+pnpm release patch -m "What you changed"
+```
 
+- `patch` raises 1.0.0 to 1.0.1. Use `minor` (1.1.0) or `major` (2.0.0) for bigger changes, or an exact number such as `1.4.0`. Without a word, it means `patch`.
+- `-m "..."` commits all your unsaved changes with that message first. Leave it out if everything is already committed.
+- The script raises the version, makes the tag, and pushes. GitHub Actions (`.github/workflows/release.yml`) then runs the unit tests, builds the app for Apple Silicon and Intel, and publishes the release with the five files. The script waits and prints the link when it is done (about 5 to 10 minutes). It needs the `gh` login to wait; without it, it only prints the links.
+- People update with the same install line as the first install.
+
+If a build fails, nothing is published. Look at the Actions tab on GitHub, fix the problem, and run `pnpm release` again. A failed version number is skipped; the next run uses the next number.
+
+You can still build on your own Mac with `pnpm package` (the files appear in `release/`).
+
+## Writing aids
+
+- **Right-click menu:** spelling suggestions and Add to Dictionary for a misspelled word, Cut, Copy, Paste, Select All, and Look Up. macOS adds its own entries to the same menu where it supports them (Writing Tools, AutoFill, Services, Ask Siri). Writing Tools needs macOS 15.1 or newer with Apple Intelligence turned on.
+- **Autocorrect:** like on an iPhone. Type a word and a space (or `. , ; : ! ?`) and an obvious typo is fixed. Backspace right after a correction gives your word back and leaves it alone for the rest of the session. The button next to Undo/Redo turns it on or off. It only changes lowercase words, or a capital word at the start of a sentence, and only when the best suggestion is one small edit away. Names, ALL CAPS, words with numbers, and code blocks are never changed. It uses a bundled English dictionary (British or US, from the system language), and words you add with Add to Dictionary are kept.

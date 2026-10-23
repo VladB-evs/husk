@@ -1,0 +1,53 @@
+# Builds the Mac app and publishes a GitHub release when a version tag (v1.2.3) is pushed.
+# You do not push the tag by hand: run `pnpm release` (see scripts/release.sh).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # needed to create the release
+
+jobs:
+  build:
+    runs-on: macos-latest # Apple Silicon. The Intel (x64) app is built from here too.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # takes the pnpm version from "packageManager" in package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: The tag must match the version in package.json
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build the app
+        run: pnpm package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # no Apple certificate: the app is signed ad hoc by build/adhoc-sign.js
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FILES="release/HUSK-arm64.zip release/HUSK-x64.zip release/HUSK-arm64.dmg release/HUSK-x64.dmg release/SHA256SUMS"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" $FILES --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" $FILES --title "HUSK ${GITHUB_REF_NAME#v}" --generate-notes
+          fi

@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, session } from 'electron';
-import type { IpcMainEvent, IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, session, Menu } from 'electron';
+import type { IpcMainEvent, IpcMainInvokeEvent, MenuItemConstructorOptions } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -50,6 +50,60 @@ function lockDownContents(win: BrowserWindow) {
   });
 }
 
+/**
+ * Right-click menu. Electron shows no menu on its own, so this builds the usual one:
+ * spelling suggestions, Add to Dictionary, Undo/Cut/Copy/Paste/Select All, and Look Up (the macOS dictionary).
+ * The frame passed to popup() lets macOS add its own entries (Writing Tools, AutoFill, Services) to the menu.
+ */
+function addContextMenu(win: BrowserWindow) {
+  const wc = win.webContents;
+  wc.on('context-menu', (_event, params) => {
+    const items: MenuItemConstructorOptions[] = [];
+    const word = params.misspelledWord;
+
+    if (params.isEditable && word) {
+      const suggestions = params.dictionarySuggestions.slice(0, 5);
+      suggestions.forEach((suggestion) =>
+        items.push({ label: suggestion, click: () => wc.replaceMisspelling(suggestion) })
+      );
+      if (!suggestions.length) items.push({ label: 'No guesses found', enabled: false });
+      items.push({
+        label: 'Add to Dictionary',
+        click: () => {
+          wc.session.addWordToSpellCheckerDictionary(word);
+          wc.send('dictionary-word-added', word); // the autocorrect learns it too
+        },
+      });
+      items.push({ type: 'separator' });
+    }
+
+    const selected = params.selectionText.trim();
+    if (selected && process.platform === 'darwin') {
+      const shown = selected.length > 24 ? `${selected.slice(0, 24)}…` : selected;
+      items.push({ label: `Look Up “${shown}”`, click: () => wc.showDefinitionForSelection() });
+      items.push({ type: 'separator' });
+    }
+
+    if (params.isEditable) {
+      items.push(
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'pasteAndMatchStyle' },
+        { role: 'selectAll' }
+      );
+    } else if (selected) {
+      items.push({ role: 'copy' }, { role: 'selectAll' });
+    }
+
+    // Passing the frame lets macOS add its own items to this menu: Writing Tools, AutoFill and Services
+    if (items.length) Menu.buildFromTemplate(items).popup({ window: win, frame: params.frame ?? undefined });
+  });
+}
+
 function createWindow() {
   store.ensureDirs(dirs);
 
@@ -66,9 +120,11 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      spellcheck: true, // red underline for misspelled words, and suggestions in the right-click menu
     },
   });
   lockDownContents(mainWindow);
+  addContextMenu(mainWindow);
 
   if (DEV_URL) {
     mainWindow.loadURL(DEV_URL);

@@ -29,18 +29,23 @@ import {
   ChevronDown,
   Grid,
   FileDown,
+  SpellCheck,
 } from 'lucide-react';
 
 interface ToolbarProps {
   editor: Editor | null;
   brandPrimaryColor: string;
   onOpenSignatureModal: () => void;
+  autocorrect?: boolean;
+  onToggleAutocorrect?: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
   editor,
   brandPrimaryColor,
   onOpenSignatureModal,
+  autocorrect = false,
+  onToggleAutocorrect,
 }) => {
   const [showTableMenu, setShowTableMenu] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -97,6 +102,22 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         >
           <Redo2 className="w-4 h-4" />
         </button>
+        {onToggleAutocorrect && (
+          <button
+            onClick={onToggleAutocorrect}
+            title={
+              autocorrect
+                ? 'Autocorrect is on: typos are fixed when you type a space. Backspace right after undoes it. Click to turn off.'
+                : 'Autocorrect is off. Click to turn on.'
+            }
+            aria-pressed={autocorrect}
+            className={`p-1.5 rounded-lg transition ${
+              autocorrect ? 'bg-[#FF4C00]/15 text-[#FF4C00]' : 'text-stone-500 hover:text-white hover:bg-[#22201d]'
+            }`}
+          >
+            <SpellCheck className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Headings */}

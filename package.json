@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:e2e": "pnpm build:all && vitest run --config vitest.e2e.config.ts",
     "package": "pnpm build:all && electron-builder --mac && cd release && shasum -a 256 *.zip *.dmg > SHA256SUMS",
-    "package:dir": "pnpm build:all && electron-builder --mac --dir"
+    "package:dir": "pnpm build:all && electron-builder --mac --dir",
+    "release": "bash scripts/release.sh"
   },
   "keywords": [
     "text-editor",
@@ -43,15 +44,19 @@
     "@tiptap/pm": "3.32.0",
     "@tiptap/react": "3.32.0",
     "@tiptap/starter-kit": "3.32.0",
+    "@types/nspell": "^2.1.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.2",
     "autoprefixer": "10.6.1",
     "clsx": "2.1.1",
     "concurrently": "10.0.6",
+    "dictionary-en": "^4.0.0",
+    "dictionary-en-gb": "^3.0.0",
     "electron": "45.0.0",
     "electron-builder": "26.15.3",
     "lucide-react": "1.61.0",
+    "nspell": "^2.1.5",
     "pdfjs-dist": "6.4.299",
     "postcss": "8.5.31",
     "react": "19.3.1",
@@ -102,5 +107,6 @@
     "dmg": {
       "title": "HUSK ${version}"
     }
-  }
+  },
+  "packageManager": "pnpm@11.22.0"
 }

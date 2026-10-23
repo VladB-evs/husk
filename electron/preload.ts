@@ -17,6 +17,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveProfile: (profile: any) => ipcRenderer.invoke('save-profile', profile),
   showItemInFolder: (fullPath: string) => ipcRenderer.invoke('show-item-in-folder', fullPath),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onDictionaryWordAdded: (callback: (word: string) => void) => {
+    const listener = (_event: unknown, word: string) => callback(word);
+    ipcRenderer.on('dictionary-word-added', listener);
+    return () => ipcRenderer.removeListener('dictionary-word-added', listener);
+  },
   closeWindow: () => ipcRenderer.send('window-close'),
   minimizeWindow: () => ipcRenderer.send('window-minimize'),
   maximizeWindow: () => ipcRenderer.send('window-maximize'),

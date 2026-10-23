@@ -40,6 +40,8 @@ export interface ElectronAPI {
   saveProfile: (profile: any) => Promise<SaveResult>;
   showItemInFolder: (fullPath: string) => Promise<boolean>;
   getAppVersion: () => Promise<string>;
+  /** Fires when the user chooses Add to Dictionary in the right-click menu. Returns a function that stops listening. */
+  onDictionaryWordAdded: (callback: (word: string) => void) => () => void;
   closeWindow: () => void;
   minimizeWindow: () => void;
   maximizeWindow: () => void;

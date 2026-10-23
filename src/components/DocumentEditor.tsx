@@ -7,8 +7,10 @@ import { Highlight } from '@tiptap/extension-highlight';
 import { TextAlign } from '@tiptap/extension-text-align';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { PageBreak } from '../extensions/PageBreak';
-import { CustomTable, CustomTableRow, CustomTableCell, CustomTableHeader, TableEnterKey } from '../extensions/CustomTable';
+import { CustomTable, CustomTableRow, CustomTableCell, CustomTableHeader, TableKeys } from '../extensions/CustomTable';
 import { Pagination, SIGNOFF_MARGIN } from '../extensions/Pagination';
+import { Autocorrect } from '../extensions/Autocorrect';
+import { addUserWord, loadSpellChecker } from '../utils/spell';
 import type { PaginationPlan } from '../extensions/Pagination';
 import { PAGE, buildDocumentCss, buildEditorChromeCss } from '../shared/documentLayout';
 import { HuskDocument, MetadataField } from '../types';
@@ -37,6 +39,26 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [layout, setLayout] = useState({ pages: 1, signoffPush: 0 });
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Autocorrect (iPhone style). The choice is remembered on this Mac.
+  const [autocorrectOn, setAutocorrectOn] = useState(() => {
+    try {
+      return localStorage.getItem('husk_autocorrect') !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const autocorrectRef = useRef(autocorrectOn);
+  autocorrectRef.current = autocorrectOn;
+  const toggleAutocorrect = () =>
+    setAutocorrectOn((on) => {
+      try {
+        localStorage.setItem('husk_autocorrect', on ? 'off' : 'on');
+      } catch {
+        // the choice just will not be remembered
+      }
+      return !on;
+    });
+
   const sheetRef = useRef<HTMLDivElement>(null);
   const flowRef = useRef<HTMLDivElement>(null);
   const signoffRef = useRef<HTMLDivElement>(null);
@@ -67,8 +89,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       CustomTableRow,
       CustomTableHeader,
       CustomTableCell,
-      TableEnterKey,
+      TableKeys,
       PageBreak,
+      Autocorrect.configure({ isEnabled: () => autocorrectRef.current }),
       Placeholder.configure({ placeholder: 'Write your document sections, paragraphs, tables...' }),
       Pagination.configure({
         getEnv: () => (sheetRef.current ? { sheet: sheetRef.current, signoff: signoffRef.current } : null),
@@ -88,6 +111,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const schedulePagination = useCallback(() => {
     (editor?.storage as any)?.pagination?.schedule();
   }, [editor]);
+
+  // Load the spelling dictionary a moment after the editor opens, so the start of the app stays fast
+  useEffect(() => {
+    if (!autocorrectOn) return;
+    const timer = setTimeout(() => void loadSpellChecker(), 600);
+    return () => clearTimeout(timer);
+  }, [autocorrectOn]);
+
+  // "Add to Dictionary" in the right-click menu also teaches the autocorrect
+  useEffect(() => window.electronAPI?.onDictionaryWordAdded(addUserWord), []);
 
   // Tell the app how far the page can be zoomed and still fit the window width
   useEffect(() => {
@@ -165,6 +198,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         editor={editor}
         brandPrimaryColor={doc.branding.primaryColor}
         onOpenSignatureModal={() => setIsSignatureModalOpen(true)}
+        autocorrect={autocorrectOn}
+        onToggleAutocorrect={toggleAutocorrect}
       />
 
       <TableQuickControls editor={editor} brandPrimaryColor={doc.branding.primaryColor} />

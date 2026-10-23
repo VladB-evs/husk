@@ -1,4 +1,5 @@
 import { Extension, mergeAttributes } from '@tiptap/react';
+import type { Editor } from '@tiptap/react';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
@@ -127,34 +128,103 @@ export const CustomTableRow = TableRow.extend({
 });
 
 /**
- * Return in a table cell adds a row below and moves the cursor into the same column of the new row.
- * Shift+Return still starts a new line inside the cell (the hard break of the editor).
- * Lists and code blocks inside a cell keep their own Return behavior.
+ * Keys inside table cells:
+ *  - Return adds a row below and moves the cursor into the same column of the new row.
+ *  - Shift+Return starts a new line inside the cell (the hard break of the editor).
+ *  - Backspace or Delete in a row that is completely empty removes the row.
+ * Lists and code blocks inside a cell keep their own key behavior.
  */
-export const TableEnterKey = Extension.create({
-  name: 'tableEnterKey',
-  priority: 1000, // before the default "split the paragraph" behavior
+function cellContext(editor: Editor) {
+  const { selection } = editor.state;
+  if (!(selection instanceof TextSelection)) return null;
+  const $from = selection.$from;
+
+  let cellDepth = -1;
+  for (let d = $from.depth; d > 0; d--) {
+    const node = $from.node(d);
+    const role = node.type.spec.tableRole;
+    if (role === 'cell' || role === 'header_cell') {
+      cellDepth = d;
+      break;
+    }
+    if (node.type.name === 'listItem' || node.type.name === 'codeBlock') return null;
+  }
+  if (cellDepth < 0) return null;
+  return { selection, $from, cellDepth, rowDepth: cellDepth - 1, tableDepth: cellDepth - 2 };
+}
+
+function isEmptyCell(cell: PMNode): boolean {
+  const first = cell.firstChild;
+  return cell.childCount === 1 && !!first && first.isTextblock && first.content.size === 0;
+}
+
+/** Remove the row the cursor is in, if every cell of it is empty. `direction` says where the cursor goes next. */
+function deleteEmptyRow(editor: Editor, direction: 'back' | 'forward'): boolean {
+  const ctx = cellContext(editor);
+  if (!ctx || !ctx.selection.empty) return false;
+  const { $from, rowDepth, tableDepth } = ctx;
+
+  const table = $from.node(tableDepth);
+  const row = $from.node(rowDepth);
+  if (table.type.spec.tableRole !== 'table' || row.type.spec.tableRole !== 'row') return false;
+  if (table.childCount < 2) return false; // the only row of a table stays
+
+  let allEmpty = true;
+  row.forEach((cell) => {
+    if (!isEmptyCell(cell)) allEmpty = false;
+  });
+  if (!allEmpty) return false;
+
+  // merged cells make the row layout tricky: leave those tables to the table tools
+  let merged = false;
+  table.descendants((node) => {
+    if (node.type.spec.tableRole === 'cell' || node.type.spec.tableRole === 'header_cell') {
+      if ((node.attrs.rowspan || 1) > 1 || (node.attrs.colspan || 1) > 1) merged = true;
+      return false;
+    }
+    return !merged;
+  });
+  if (merged) return false;
+
+  const tablePos = $from.before(tableDepth);
+  const rowPos = $from.before(rowDepth);
+  const rowIndex = $from.index(tableDepth);
+  const columnIndex = $from.index(rowDepth);
+
+  // Backspace goes to the row above (or below for the first row); Delete goes to the row below (or above for the last)
+  const above = direction === 'back' ? rowIndex > 0 : rowIndex === table.childCount - 1;
+  const targetIndex = above ? rowIndex - 1 : rowIndex; // after the removal the row below takes this index
+
+  return editor
+    .chain()
+    .command(({ tr }) => {
+      tr.delete(rowPos, rowPos + row.nodeSize);
+      const newTable = tr.doc.nodeAt(tablePos);
+      if (!newTable) return false;
+      let pos = tablePos + 1;
+      for (let i = 0; i < targetIndex; i++) pos += newTable.child(i).nodeSize;
+      const targetRow = newTable.child(targetIndex);
+      const column = Math.min(columnIndex, targetRow.childCount - 1);
+      let cellPos = pos + 1;
+      for (let c = 0; c < column; c++) cellPos += targetRow.child(c).nodeSize;
+      const cell = targetRow.child(column);
+      const inside = above ? cellPos + cell.nodeSize - 1 : cellPos + 1;
+      tr.setSelection(TextSelection.near(tr.doc.resolve(inside), above ? -1 : 1));
+      return true;
+    })
+    .run();
+}
+
+export const TableKeys = Extension.create({
+  name: 'tableKeys',
+  priority: 1000, // before the default "split the paragraph" and delete behavior
 
   addKeyboardShortcuts() {
     return {
       Enter: ({ editor }) => {
-        const { selection } = editor.state;
-        if (!(selection instanceof TextSelection)) return false;
-        const $from = selection.$from;
-
-        let cellDepth = -1;
-        for (let d = $from.depth; d > 0; d--) {
-          const node = $from.node(d);
-          const role = node.type.spec.tableRole;
-          if (role === 'cell' || role === 'header_cell') {
-            cellDepth = d;
-            break;
-          }
-          if (node.type.name === 'listItem' || node.type.name === 'codeBlock') return false;
-        }
-        if (cellDepth < 0) return false;
-
-        const cellPos = $from.before(cellDepth); // the new row comes after this cell, so this position stays valid
+        const ctx = cellContext(editor);
+        if (!ctx) return false;
+        const cellPos = ctx.$from.before(ctx.cellDepth); // the new row comes after this cell, so this stays valid
         return editor
           .chain()
           .addRowAfter()
@@ -171,6 +241,8 @@ export const TableEnterKey = Extension.create({
           })
           .run();
       },
+      Backspace: ({ editor }) => deleteEmptyRow(editor, 'back'),
+      Delete: ({ editor }) => deleteEmptyRow(editor, 'forward'),
     };
   },
 });
