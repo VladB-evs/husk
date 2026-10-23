@@ -12,8 +12,8 @@
     "start": "pnpm build:all && electron .",
     "test": "vitest run",
     "test:e2e": "pnpm build:all && vitest run --config vitest.e2e.config.ts",
-    "package": "pnpm build:all && electron-builder --mac && cd release && shasum -a 256 *.zip *.dmg > SHA256SUMS",
-    "package:dir": "pnpm build:all && electron-builder --mac --dir",
+    "package": "pnpm build:all && electron-builder --mac --publish never && cd release && shasum -a 256 *.zip *.dmg > SHA256SUMS",
+    "package:dir": "pnpm build:all && electron-builder --mac --dir --publish never",
     "release": "bash scripts/release.sh"
   },
   "keywords": [
