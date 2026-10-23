@@ -83,7 +83,8 @@ export function buildDocumentCss(brand: DocumentCssBrand, mode: DocumentCssMode)
 .hd-body blockquote { border-left:3px solid ${primary}; padding-left:12px; margin:12px 0; color:#475569; font-style:italic; }
 .hd-body blockquote p { margin:0; padding:3px 0 5px; }
 .hd-body hr { border:0; border-top:1.5px solid ${border}; margin:18px 0; }
-.hd-body img { max-width:100%; height:auto; }
+.hd-body img { display:block; max-width:100%; max-height:900px; width:auto; height:auto; margin:12px 0; }
+.hd-body td img, .hd-body th img { margin:6px 0; }
 .hd-body { orphans:2; widows:2; }
 .hd-body h1, .hd-body h2, .hd-body h3, .hd-body img, .hd-body tr { break-inside:avoid; page-break-inside:avoid; }
 .hd-body tr[data-keep] { break-after:avoid; page-break-after:avoid; }
@@ -106,6 +107,7 @@ export function buildEditorChromeCss(): string {
 .hd-edit input:focus { box-shadow:inset 0 -1px 0 #FF4C00; }
 .hd-edit .ProseMirror { display:flow-root; outline:none; min-height:120px; white-space:pre-wrap; word-wrap:break-word; }
 .hd-edit .ProseMirror p.is-editor-empty:first-child::before { color:#94a3b8; content:attr(data-placeholder); float:left; height:0; pointer-events:none; }
+.hd-edit .ProseMirror img.ProseMirror-selectednode { outline:2px solid #FF4C00; outline-offset:2px; }
 .hd-edit .husk-pg-spacer { pointer-events:none; user-select:none; margin:0; padding:0; border:0; }
 .hd-edit table .husk-pg-repeat { pointer-events:none; user-select:none; }
 .hd-edit table .husk-pg-spacer td { border:0 !important; padding:0 !important; background:transparent !important; }

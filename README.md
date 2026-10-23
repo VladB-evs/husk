@@ -15,6 +15,7 @@
    - Rich typography: Headings (H1, H2, H3), Paragraphs, Bold, Italic, Underline, Strikethrough, Text Color, Highlighter.
    - Comprehensive table controls: Insert tables, add/delete rows & columns, toggle tinted company header rows, merge/split cells.
    - Bulleted lists, numbered lists, blockquotes, horizontal dividers, undo/redo.
+   - Pictures: use the Picture button, drop an image on the page, or paste one. Pictures are saved inside the document and appear in the PDF.
 
 3. **Dynamic Company Color Schema**:
    - Company color schema applies automatically across document titles, subtitles, section headers, lines, and table header tints.
@@ -133,7 +134,7 @@ xattr -dr com.apple.quarantine /Applications/HUSK.app
 
 - This is not notarized. A Mac that an IT department locks down (managed Gatekeeper policy) can still block it.
 - Apple can change how macOS treats unsigned apps. Check the install on a new macOS version.
-- There is no automatic update. Signed apps are needed for that.
+- The standard Mac updater (Squirrel.Mac, used by electron-updater) needs a real Apple signature, so HUSK has its own small updater (`electron/updater.ts`). See "How updates work".
 - If you ever pay for an Apple Developer account, set `identity` in the `build.mac` part of `package.json` and add notarization. Nothing else changes.
 
 ### Releasing an update (one command)
@@ -145,11 +146,27 @@ pnpm release patch -m "What you changed"
 - `patch` raises 1.0.0 to 1.0.1. Use `minor` (1.1.0) or `major` (2.0.0) for bigger changes, or an exact number such as `1.4.0`. Without a word, it means `patch`.
 - `-m "..."` commits all your unsaved changes with that message first. Leave it out if everything is already committed.
 - The script raises the version, makes the tag, and pushes. GitHub Actions (`.github/workflows/release.yml`) then runs the unit tests, builds the app for Apple Silicon and Intel, and publishes the release with the five files. The script waits and prints the link when it is done (about 5 to 10 minutes). It needs the `gh` login to wait; without it, it only prints the links.
-- People update with the same install line as the first install.
+- Installed copies of HUSK find the new release by themselves (see "How updates work"). The install line still works for a first install or a repair.
+
+The app is never built on your Mac for a release: only the tag is pushed from here, and GitHub Actions does all the building and packaging.
 
 If a build fails, nothing is published. Look at the Actions tab on GitHub, fix the problem, and run `pnpm release` again. A failed version number is skipped; the next run uses the next number.
 
 You can still build on your own Mac with `pnpm package` (the files appear in `release/`).
+
+### How updates work
+
+An installed HUSK asks GitHub for the latest release 5 seconds after it starts, and every 6 hours after that. When the release is newer, a strip under the title bar says so. One click on **Update & restart** does this:
+
+1. Downloads `HUSK-<arch>.zip` and checks it against `SHA256SUMS` from the same release.
+2. Unpacks it next to the installed app and checks the signature. Until here the running app is not touched, so a failure leaves it as it was and shows the error in the strip.
+3. Saves pending edits, quits, swaps `HUSK.app`, and opens the new version. If the swap fails, the old app comes back.
+
+Notes:
+- It only runs in an installed app (`app.isPackaged`). `pnpm app`, `pnpm start` and the end-to-end tests never update.
+- The folder that holds `HUSK.app` must be writable by you (`~/Applications` is). If HUSK runs from a place you cannot write to, such as a mounted `.dmg`, the strip shows the error: run the install line once.
+- The checksum proves the download arrived whole. It does not prove who made it; that is the same trust as the install line, since both come from this repository's releases.
+- The first version that has the updater must still be installed by hand (the install line). After that, updates come by themselves.
 
 ## Writing aids
 

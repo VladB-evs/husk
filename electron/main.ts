@@ -8,6 +8,7 @@ import { PAGE_MM } from '../src/shared/documentLayout';
 import { buildPrintHtml, buildFooterTemplate } from '../src/shared/printDocument';
 import { buildInterFaceCss } from '../src/shared/fontFace';
 import * as store from './store';
+import * as updater from './updater';
 
 // Tests point these at scratch folders. Normal runs use ~/Documents/HUSK.
 const DATA_DIR = process.env.HUSK_DATA_DIR || path.join(os.homedir(), 'Documents', 'HUSK');
@@ -214,6 +215,45 @@ handle('show-item-in-folder', (fullPath: string) => {
 });
 
 handle('get-app-version', () => app.getVersion());
+
+// ───────────────────────── updates ─────────────────────────
+
+// Only an installed app updates itself. `electron .` (dev runs and the end-to-end tests) never does.
+const updatesEnabled = () => app.isPackaged && process.platform === 'darwin';
+const releaseArch = () => (process.arch === 'arm64' ? 'arm64' : 'x64');
+let availableUpdate: updater.UpdateInfo | null = null;
+let installingUpdate = false;
+
+handle('update-check', async () => {
+  if (!updatesEnabled()) return null;
+  availableUpdate = await updater.checkForUpdate(app.getVersion(), releaseArch());
+  return availableUpdate && { version: availableUpdate.version, notes: availableUpdate.notes };
+});
+
+handle('update-install', async () => {
+  if (!updatesEnabled() || !availableUpdate || installingUpdate) return { success: false, error: 'No update to install' };
+  installingUpdate = true;
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'husk-download-'));
+  try {
+    const zip = await updater.downloadUpdate(availableUpdate, tmp, (fraction) =>
+      mainWindow?.webContents.send('update-progress', fraction)
+    );
+    // exe is HUSK.app/Contents/MacOS/HUSK
+    const appPath = path.resolve(app.getPath('exe'), '../../..');
+    if (!appPath.endsWith('.app')) throw new Error('HUSK is not running from an app bundle');
+    const { stage, newApp } = await updater.stageUpdate(zip, appPath);
+    updater.launchSwap(process.pid, appPath, newApp, stage);
+    // Closing the window saves any pending edit first (the page flushes on beforeunload)
+    app.quit();
+    return { success: true };
+  } catch (err: any) {
+    console.error('Update failed:', err);
+    installingUpdate = false;
+    return { success: false, error: err.message as string };
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
 
 // ───────────────────────── PDF export ─────────────────────────
 

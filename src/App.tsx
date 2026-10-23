@@ -19,6 +19,7 @@ import {
 import { buildPrintHtml } from './shared/printDocument';
 import { INTER_FACE_CSS } from './utils/fonts';
 import { TitleBar } from './components/TitleBar';
+import { UpdateBanner } from './components/UpdateBanner';
 import { DocumentEditor } from './components/DocumentEditor';
 import { TemplateStudio } from './components/TemplateStudio';
 import { DocumentsLibrary } from './components/DocumentsLibrary';
@@ -211,6 +212,8 @@ const Workspace: React.FC<{ initial: AppData }> = ({ initial }) => {
         onZoomReset={() => setZoomChoice(null)}
         saveStatus={saveStatus}
       />
+
+      <UpdateBanner />
 
       {/* Main Content Area */}
       <main className="flex-1 flex overflow-hidden relative">

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Editor } from '@tiptap/react';
+import { insertImageFiles } from '../extensions/ImageUpload';
 import {
   Bold,
   Italic,
@@ -30,6 +31,7 @@ import {
   Grid,
   FileDown,
   SpellCheck,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -51,6 +53,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showHighlightPicker, setShowHighlightPicker] = useState(false);
   const [hoverGrid, setHoverGrid] = useState<{ rows: number; cols: number }>({ rows: 3, cols: 3 });
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   if (!editor) return null;
 
@@ -528,6 +531,29 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             )}
           </div>
         )}
+      </div>
+
+      {/* Picture */}
+      <div className="ml-1.5">
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            void insertImageFiles(editor, Array.from(e.target.files ?? []));
+            e.target.value = '';
+          }}
+        />
+        <button
+          onClick={() => imageInputRef.current?.click()}
+          title="Insert Picture (or drop / paste one on the page)"
+          className="px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition bg-[#1a1917] text-stone-200 hover:bg-[#22201d] border border-[#2e2a24]"
+        >
+          <ImageIcon className="w-4 h-4 text-[#FF4C00]" />
+          <span className="hidden min-[1100px]:inline">Picture</span>
+        </button>
       </div>
 
       {/* Signature button */}

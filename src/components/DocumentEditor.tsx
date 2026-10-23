@@ -10,6 +10,7 @@ import { PageBreak } from '../extensions/PageBreak';
 import { CustomTable, CustomTableRow, CustomTableCell, CustomTableHeader, TableKeys } from '../extensions/CustomTable';
 import { Pagination, SIGNOFF_MARGIN } from '../extensions/Pagination';
 import { Autocorrect } from '../extensions/Autocorrect';
+import { HuskImage, ImageUpload, insertImageFiles, isImageFile } from '../extensions/ImageUpload';
 import { addUserWord, loadSpellChecker } from '../utils/spell';
 import type { PaginationPlan } from '../extensions/Pagination';
 import { PAGE, buildDocumentCss, buildEditorChromeCss } from '../shared/documentLayout';
@@ -91,6 +92,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       CustomTableCell,
       TableKeys,
       PageBreak,
+      HuskImage,
+      ImageUpload,
       Autocorrect.configure({ isEnabled: () => autocorrectRef.current }),
       Placeholder.configure({ placeholder: 'Write your document sections, paragraphs, tables...' }),
       Pagination.configure({
@@ -205,7 +208,21 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       <TableQuickControls editor={editor} brandPrimaryColor={doc.branding.primaryColor} />
 
       {/* Page canvas: a stack of real A4 pages */}
-      <div ref={scrollRef} className="flex-1 overflow-auto bg-[#121110] px-4 py-6">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-auto bg-[#121110] px-4 py-6"
+        // A picture dropped outside the text (margin, header, grey area) is added at the end of the document.
+        // The editor handles drops on the text itself and marks them as handled.
+        onDragOver={(e) => {
+          if (Array.from(e.dataTransfer.items).some((i) => i.kind === 'file')) e.preventDefault();
+        }}
+        onDrop={(e) => {
+          const files = Array.from(e.dataTransfer.files).filter(isImageFile);
+          if (e.defaultPrevented || !editor || !files.length) return;
+          e.preventDefault();
+          void insertImageFiles(editor, files, editor.state.doc.content.size);
+        }}
+      >
         <div
           className="relative"
           style={{ width: PAGE.width * zoomLevel, height: sheetHeight * zoomLevel, margin: '0 auto' }}

@@ -40,6 +40,12 @@ export interface ElectronAPI {
   saveProfile: (profile: any) => Promise<SaveResult>;
   showItemInFolder: (fullPath: string) => Promise<boolean>;
   getAppVersion: () => Promise<string>;
+  /** The newer release on GitHub, or null when this is the newest (or the app does not update itself). */
+  checkForUpdate: () => Promise<{ version: string; notes: string } | null>;
+  /** Downloads and installs the update, then restarts the app. Only returns when it failed. */
+  installUpdate: () => Promise<{ success: boolean; error?: string }>;
+  /** Download progress from 0 to 1. Returns a function that stops listening. */
+  onUpdateProgress: (callback: (fraction: number) => void) => () => void;
   /** Fires when the user chooses Add to Dictionary in the right-click menu. Returns a function that stops listening. */
   onDictionaryWordAdded: (callback: (word: string) => void) => () => void;
   closeWindow: () => void;

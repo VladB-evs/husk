@@ -17,6 +17,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveProfile: (profile: any) => ipcRenderer.invoke('save-profile', profile),
   showItemInFolder: (fullPath: string) => ipcRenderer.invoke('show-item-in-folder', fullPath),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  checkForUpdate: () => ipcRenderer.invoke('update-check'),
+  installUpdate: () => ipcRenderer.invoke('update-install'),
+  onUpdateProgress: (callback: (fraction: number) => void) => {
+    const listener = (_event: unknown, fraction: number) => callback(fraction);
+    ipcRenderer.on('update-progress', listener);
+    return () => ipcRenderer.removeListener('update-progress', listener);
+  },
   onDictionaryWordAdded: (callback: (word: string) => void) => {
     const listener = (_event: unknown, word: string) => callback(word);
     ipcRenderer.on('dictionary-word-added', listener);
