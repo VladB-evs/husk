@@ -1,0 +1,151 @@
+# HUSK — Official Company Document & Template Studio
+
+**HUSK** is a professional, high-fidelity macOS desktop text editor and template engine designed for creating official company documents and exporting them to publication-grade PDFs.
+
+---
+
+## Key Features
+
+1. **Pixel-Perfect Official Templates**:
+   - Starts with a neutral **Starter Template** (company header, metadata table, sign-off card, and confidential footer). Add your own name, logo and colors in Template Studio.
+   - Create unlimited custom company templates: set them up once, and use them repeatedly to generate clean documents.
+
+2. **Full-Featured Rich Text Editor with Tables**:
+   - Built on modern TipTap / ProseMirror (industry standard for Notion / Linear).
+   - Rich typography: Headings (H1, H2, H3), Paragraphs, Bold, Italic, Underline, Strikethrough, Text Color, Highlighter.
+   - Comprehensive table controls: Insert tables, add/delete rows & columns, toggle tinted company header rows, merge/split cells.
+   - Bulleted lists, numbered lists, blockquotes, horizontal dividers, undo/redo.
+
+3. **Dynamic Company Color Schema**:
+   - Company color schema applies automatically across document titles, subtitles, section headers, lines, and table header tints.
+   - Quick one-click color palettes (Violet, Royal Indigo, Ocean Cobalt, Forest Emerald, Corporate Slate, Ruby Crimson, Warm Amber) or any custom Hex code.
+
+4. **Reusable Digital Signatures**:
+   - Draw your signature directly with a trackpad or mouse using the built-in canvas pad.
+   - Or upload your official signature image (transparent PNG or SVG).
+   - Saved to your company profile: reusable with 1-click in the sign-off block on every document created.
+
+5. **Native macOS Desktop Experience & PDF Export**:
+   - Native macOS frameless window with traffic lights integration (`hiddenInset`).
+   - Pixel-perfect Chromium `printToPDF` engine that respects print CSS page margins, colors, and table breaks.
+   - Direct save dialog with "Show in Finder" notification.
+
+---
+
+## Where your data lives
+
+Everything is stored as files in `~/Documents/HUSK`. These files are the only copy the app uses.
+
+| Folder | Content |
+| --- | --- |
+| `Documents/` | One `<id>.husk` file for each document |
+| `Templates/` | One `<id>.json` file for each template |
+| `Exports/` | Default folder for PDF exports |
+| `Recovered/` | Files the app could not read, or older copies of the same item. The app never deletes them. |
+| `profile.json` | Your saved signature and default name and role |
+
+- The app writes a file about half a second after your last edit. Edits that are still waiting are written when you close the window.
+- Each file is written to a temp file first and then renamed, so a crash cannot leave a half-written file.
+- The first start after an upgrade imports the documents that older versions kept in the browser storage.
+
+## How to Launch
+
+### Option 1: Double-Click Launcher
+Double-click `Launch HUSK.command` in the project folder.
+
+### Option 2: Terminal
+```bash
+cd path/to/husk
+pnpm start
+```
+
+### Option 3: Development Mode
+```bash
+pnpm app
+```
+
+## Tests
+
+```bash
+pnpm test        # unit tests: planner, store, print HTML, table widths
+pnpm test:e2e    # builds the app, then drives the real app: pages, PDF, tables, storage, restart, security
+```
+
+The end-to-end tests use a scratch data folder. They never touch `~/Documents/HUSK`.
+
+## How pages and PDF export work
+
+- The editor shows real A4 pages. Content that would cross a page edge moves to the next page (`src/extensions/planner.ts`).
+- The PDF is printed from the same HTML and CSS (`src/shared/`), so pages break at the same places.
+- A table keeps its header row together with the first body row, and repeats it on every page the table continues on.
+- Text is cut between lines at a page edge, like in Word: at least two lines stay at the bottom and two go to the next page (a three-line paragraph keeps two at the bottom, as Chromium does). This works for paragraphs of any length, lists (between items and between lines), and quotes.
+- Rows that share a merged cell (rowspan) always stay on one page.
+- The editor uses the page size that Chromium really lays out when it prints (a text column of 674 px). Lines wrap and pages break at the same words as in the PDF. `e2e/split.e2e.test.ts` checks this against real PDFs.
+- Known limit: a group of merged rows, or one table row, that is taller than a whole page cannot be kept on one page and runs over the page edge.
+
+## App Modes
+
+- **Editor**: Write and edit documents on A4 pages, with zoom, table tools, and PDF export.
+- **Templates**: A gallery of all your templates with live previews. Open one to edit colors, logo, fields, sign-off, and footer.
+- **All Documents**: Search, open, duplicate, export, and delete saved documents.
+
+## Making the app and sharing it
+
+HUSK is not signed with an Apple Developer ID (that costs $99 a year), so macOS treats it as coming from an unknown developer. When someone downloads it with a web browser, AirDrop or Mail, macOS blocks the first start, and the user must go to System Settings > Privacy & Security and click "Open Anyway". The install script below avoids this.
+
+### 1. Build
+
+```bash
+pnpm package
+```
+
+This creates, in `release/`:
+
+| File | Content |
+| --- | --- |
+| `HUSK-arm64.zip`, `HUSK-x64.zip` | The app for Apple Silicon and Intel Macs (used by the install script) |
+| `HUSK-arm64.dmg`, `HUSK-x64.dmg` | The same app as a disk image, for people who download by hand |
+| `SHA256SUMS` | Checksums, used by the install script |
+
+The app gets an ad-hoc signature (`build/adhoc-sign.js`). Apple Silicon Macs refuse to start code with no signature at all. An ad-hoc signature is free but does not name a developer.
+
+### 2. Publish
+
+1. Make a release on GitHub and upload the five files above. Keep the file names as they are.
+2. `install.sh` downloads from `https://github.com/VladB-evs/husk`. If the repository has another name, change it in `install.sh` and here.
+
+### 3. Tell people to run one line in Terminal
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/VladB-evs/husk/main/install.sh | bash
+```
+
+The script downloads the right app for the Mac, checks the checksum, puts `HUSK.app` in `~/Applications` (no admin password), and opens it. macOS shows no warning because `curl` does not add the "downloaded from the internet" mark. To update, run the same line again. Documents in `~/Documents/HUSK` are not changed.
+
+People who download the `.dmg` in a browser still see the warning. For them, the fix is either "Open Anyway" in System Settings > Privacy & Security, or this command once:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/HUSK.app
+```
+
+### Limits
+
+- This is not notarized. A Mac that an IT department locks down (managed Gatekeeper policy) can still block it.
+- Apple can change how macOS treats unsigned apps. Check the install on a new macOS version.
+- There is no automatic update. Signed apps are needed for that.
+- If you ever pay for an Apple Developer account, set `identity` in the `build.mac` part of `package.json` and add notarization. Nothing else changes.
+
+### Releasing an update
+
+1. Change `"version"` in `package.json` (for example `1.0.1`).
+2. Commit and push:
+   ```bash
+   git add -A && git commit -m "HUSK 1.0.1" && git push
+   ```
+3. Build: `pnpm package`
+4. Publish the files under a new tag:
+   ```bash
+   gh release create v1.0.1 release/HUSK-arm64.zip release/HUSK-x64.zip release/HUSK-arm64.dmg release/HUSK-x64.dmg release/SHA256SUMS --title "HUSK 1.0.1" --notes "What changed"
+   ```
+5. Tell people to run the install line again. It always downloads the newest release. Their documents in `~/Documents/HUSK` are not touched.
+
