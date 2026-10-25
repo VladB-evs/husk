@@ -13,6 +13,7 @@ import {
   List,
   ListOrdered,
   Quote,
+  SquareCode,
   Minus,
   Table as TableIcon,
   Plus,
@@ -388,6 +389,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           }`}
         >
           <Quote className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          title="Code Block"
+          className={`p-1.5 rounded-lg transition ${
+            editor.isActive('codeBlock')
+              ? 'bg-[#FF4C00]/15 text-[#FF4C00]'
+              : 'text-stone-400 hover:text-white hover:bg-[#22201d]'
+          }`}
+        >
+          <SquareCode className="w-4 h-4" />
         </button>
         <button
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
