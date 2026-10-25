@@ -1,6 +1,6 @@
 {
   "name": "husk",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "HUSK - Professional Company Document & Template Editor for macOS",
   "main": "dist-electron/electron/main.js",
   "scripts": {
