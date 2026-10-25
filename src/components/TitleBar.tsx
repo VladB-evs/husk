@@ -1,6 +1,7 @@
 import React from 'react';
 import { ViewMode, HuskDocument } from '../types';
 import type { SaveStatus } from '../utils/storage';
+import { CHECK_UPDATE_EVENT } from './UpdateBanner';
 import {
   FileText,
   FolderOpen,
@@ -11,6 +12,7 @@ import {
   LayoutTemplate,
   FolderCheck,
   Check,
+  RefreshCw,
 } from 'lucide-react';
 
 interface TitleBarProps {
@@ -119,6 +121,16 @@ export const TitleBar: React.FC<TitleBarProps> = ({
             {saveStatus === 'saved' ? 'Saved' : 'Saving'}
           </span>
         )}
+
+        {/* Manual update check: UpdateBanner listens for this event and shows the answer under the title bar */}
+        <button
+          onClick={() => window.dispatchEvent(new Event(CHECK_UPDATE_EVENT))}
+          title="Check for updates"
+          className="px-2.5 py-1.5 rounded-lg bg-[#1a1917] hover:bg-[#25221e] text-stone-300 border border-[#2e2a24] text-xs font-medium flex items-center gap-1.5 transition"
+        >
+          <RefreshCw className="w-3.5 h-3.5 text-[#FF4C00]" />
+          <span className="hidden min-[1100px]:inline whitespace-nowrap">Updates</span>
+        </button>
 
         {/* Finder button */}
         <button

@@ -3,6 +3,10 @@ import { Download, X } from 'lucide-react';
 
 const FIRST_CHECK_MS = 5_000; // let the app start first
 const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
+const NOTICE_MS = 5_000;
+
+/** The title bar's Updates button fires this on window to check right now. */
+export const CHECK_UPDATE_EVENT = 'husk-check-update';
 
 /** A strip under the title bar that appears when a newer HUSK is on GitHub. One click installs it and restarts. */
 export const UpdateBanner: React.FC = () => {
@@ -10,25 +14,56 @@ export const UpdateBanner: React.FC = () => {
   const [dismissed, setDismissed] = useState(false);
   const [progress, setProgress] = useState<number | null>(null); // null = not installing
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState(''); // answer to a manual check when there is no update
 
   useEffect(() => {
     const api = window.electronAPI;
     if (!api) return;
-    const check = () =>
-      api
+    // The automatic check stays quiet; a check the user asked for always answers
+    const check = (manual: boolean) => {
+      if (manual) setNotice('Checking for updates…');
+      return api
         .checkForUpdate()
-        .then((update) => update && setVersion(update.version))
-        .catch(() => {}); // offline or GitHub is busy: try again later
-    const first = setTimeout(check, FIRST_CHECK_MS);
-    const every = setInterval(check, CHECK_EVERY_MS);
+        .then(async (update) => {
+          if (update) {
+            setVersion(update.version);
+            setDismissed(false);
+            setNotice('');
+          } else if (manual) {
+            setNotice(`HUSK ${await api.getAppVersion()} is the newest version.`);
+          }
+        })
+        .catch(() => {
+          // offline or GitHub is busy: the automatic check tries again later
+          if (manual) setNotice('Could not check for updates. Check your internet connection.');
+        });
+    };
+    const first = setTimeout(() => check(false), FIRST_CHECK_MS);
+    const every = setInterval(() => check(false), CHECK_EVERY_MS);
+    const onManual = () => check(true);
+    window.addEventListener(CHECK_UPDATE_EVENT, onManual);
     const stopProgress = api.onUpdateProgress(setProgress);
     return () => {
       clearTimeout(first);
       clearInterval(every);
+      window.removeEventListener(CHECK_UPDATE_EVENT, onManual);
       stopProgress();
     };
   }, []);
 
+  useEffect(() => {
+    if (!notice || notice.endsWith('…')) return;
+    const timer = setTimeout(() => setNotice(''), NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  if (notice && (!version || dismissed)) {
+    return (
+      <div className="no-print bg-[#1a1917] border-b border-[#26231f] px-4 py-1.5 flex items-center text-xs text-stone-300 select-none">
+        {notice}
+      </div>
+    );
+  }
   if (!version || dismissed) return null;
 
   const install = async () => {

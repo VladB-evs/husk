@@ -82,8 +82,19 @@ export function buildDocumentCss(brand: DocumentCssBrand, mode: DocumentCssMode)
 .hd-body li p { margin:0; }
 .hd-body blockquote { border-left:3px solid ${primary}; padding-left:12px; margin:12px 0; color:#475569; font-style:italic; }
 .hd-body blockquote p { margin:0; padding:3px 0 5px; }
-.hd-body pre { background:#f1f5f9; border:1px solid ${border}; border-radius:6px; padding:10px 12px; margin:12px 0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; line-height:1.5; color:#0f172a; overflow:hidden; }
-.hd-body pre, .hd-edit .ProseMirror pre { white-space:pre; overflow-wrap:normal; word-wrap:normal; }
+.hd-body pre { background:#f1f5f9; border:1px solid ${border}; border-radius:6px; padding:10px 12px; margin:12px 0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; line-height:1.5; color:#0f172a; }
+.hd-body pre, .hd-edit .ProseMirror pre { white-space:pre-wrap; overflow-wrap:anywhere; }
+.hd-body pre { break-inside:auto; }
+.hljs-comment, .hljs-quote { color:#6a737d; font-style:italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-type { color:#d73a49; }
+.hljs-string, .hljs-regexp, .hljs-addition { color:#032f62; }
+.hljs-number, .hljs-literal, .hljs-attr, .hljs-attribute, .hljs-built_in, .hljs-meta { color:#005cc5; }
+.hljs-title, .hljs-section, .hljs-selector-id, .hljs-selector-class { color:#6f42c1; }
+.hljs-variable, .hljs-template-variable, .hljs-symbol, .hljs-bullet { color:#e36209; }
+.hljs-name, .hljs-tag { color:#22863a; }
+.hljs-deletion { color:#b31d28; }
+.hljs-emphasis { font-style:italic; }
+.hljs-strong { font-weight:700; }
 .hd-body pre code { font-family:inherit; font-size:inherit; background:none; padding:0; color:inherit; }
 .hd-body code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.9em; background:#f1f5f9; border-radius:3px; padding:0 3px; }
 .hd-body hr { border:0; border-top:1.5px solid ${border}; margin:18px 0; }

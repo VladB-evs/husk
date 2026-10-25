@@ -17,6 +17,7 @@ import {
   getStoredUserProfile,
 } from './utils/storage';
 import { buildPrintHtml } from './shared/printDocument';
+import { highlightCodeInHtml } from './utils/codeHighlight';
 import { INTER_FACE_CSS } from './utils/fonts';
 import { TitleBar } from './components/TitleBar';
 import { UpdateBanner } from './components/UpdateBanner';
@@ -155,11 +156,12 @@ const Workspace: React.FC<{ initial: AppData }> = ({ initial }) => {
   // PDF export: Electron prints the A4 document itself. In a plain browser we print it from a hidden frame.
   const handleExportPDF = async (target: HuskDocument | undefined = currentDoc) => {
     if (!target) return;
+    const printable = { ...target, contentHtml: highlightCodeInHtml(target.contentHtml) }; // code gets its colors in the PDF
 
     if (window.electronAPI) {
       showNotification('Generating A4 PDF...', 'success');
 
-      const result = await window.electronAPI.exportCleanPDF(target);
+      const result = await window.electronAPI.exportCleanPDF(printable);
 
       if (result.success && result.filePath) {
         showNotification(
@@ -180,7 +182,7 @@ const Workspace: React.FC<{ initial: AppData }> = ({ initial }) => {
           setTimeout(() => frame.remove(), 1000);
         }, 400);
       };
-      frame.srcdoc = buildPrintHtml(target, { browserPrint: true, fontCss: INTER_FACE_CSS });
+      frame.srcdoc = buildPrintHtml(printable, { browserPrint: true, fontCss: INTER_FACE_CSS });
       window.document.body.appendChild(frame);
     }
   };

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Editor } from '@tiptap/react';
 import { insertImageFiles } from '../extensions/ImageUpload';
+import { toggleCodeBlock } from '../extensions/codeBlockCommand';
 import {
   Bold,
   Italic,
@@ -391,7 +392,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <Quote className="w-4 h-4" />
         </button>
         <button
-          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          onClick={() => toggleCodeBlock(editor)}
           title="Code Block"
           className={`p-1.5 rounded-lg transition ${
             editor.isActive('codeBlock')
