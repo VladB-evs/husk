@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { pathToFileURL } from 'url';
 import { PAGE_MM } from '../src/shared/documentLayout';
-import { buildPrintHtml, buildFooterTemplate } from '../src/shared/printDocument';
+import { buildPrintHtml, buildFooterTemplate, buildHeaderTemplate } from '../src/shared/printDocument';
 import { buildInterFaceCss } from '../src/shared/fontFace';
 import * as store from './store';
 import * as updater from './updater';
@@ -333,8 +333,8 @@ handle('export-clean-pdf', async (doc: any) => {
           left: inch(PAGE_MM.marginX),
           right: inch(PAGE_MM.marginX),
         },
-        displayHeaderFooter: !!showFooter,
-        headerTemplate: '<span></span>',
+        displayHeaderFooter: true,
+        headerTemplate: buildHeaderTemplate(doc, interFontCss()),
         footerTemplate: showFooter ? buildFooterTemplate(doc, interFontCss()) : '<span></span>',
         preferCSSPageSize: false,
       });

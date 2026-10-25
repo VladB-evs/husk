@@ -1,4 +1,4 @@
-import { PAGE_MM, buildDocumentCss } from './documentLayout';
+import { PAGE, PAGE_MM, buildDocumentCss } from './documentLayout';
 
 // Builds the standalone HTML that is printed to PDF. It uses the same markup classes and the same CSS
 // as the editor page (see documentLayout.ts), so pages break in the PDF where they break on screen.
@@ -30,6 +30,26 @@ export function footerLeftTextFor(suffix: string): string {
 
 export function footerLeftText(doc: any): string {
   return [String(doc.title ?? '').trim(), footerSuffix(doc.footerConfig?.leftText)].filter(Boolean).join(' | ');
+}
+
+/** Height of the running header, rule included. It sits in the top margin (PAGE_MM.marginTop is taller), so it never moves the text. */
+export const RUNNING_HEADER_H = 49;
+
+/**
+ * The header that every page has: the logo (or company name) on the left, the legal name and contact on the right.
+ * One string with inline styles, used for the editor pages and for the header of the PDF, so both look the same.
+ */
+export function buildRunningHeaderHtml(brand: any): string {
+  const primary = brand?.primaryColor || '#9353d3';
+  const logo = brand?.logoUrl
+    ? `<img src="${escapeHtml(brand.logoUrl)}" alt="Logo" style="display:block;height:28px;width:auto;max-width:${Number(brand.logoWidth) || 140}px;object-fit:contain;object-position:left bottom">`
+    : `<span style="font-size:16px;font-weight:800;letter-spacing:-.01em;line-height:1;color:${escapeHtml(primary)}">${escapeHtml(brand?.companyName || 'Company')}</span>`;
+  const legal = brand?.legalEntity ? `<div style="font-weight:600;color:#334155">${escapeHtml(brand.legalEntity)}</div>` : '';
+  const contact = brand?.contactInfo ? `<div>${escapeHtml(brand.contactInfo)}</div>` : '';
+  return `<div style="box-sizing:border-box;width:100%;height:${RUNNING_HEADER_H}px;padding:12px 0 6px;display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:2px solid ${escapeHtml(primary)};font-family:'Inter Variable',Inter,-apple-system,Helvetica,Arial,sans-serif;-webkit-print-color-adjust:exact;">
+    <div style="font-size:16px;line-height:1">${logo}</div>
+    <div style="text-align:right;font-size:9px;line-height:1.3;color:#64748b">${legal}${contact}</div>
+  </div>`;
 }
 
 const PAGE_PX_W = Math.round((PAGE_MM.width * 96) / 25.4);
@@ -140,9 +160,9 @@ ${buildDocumentCss(colors, 'print')}
 </style>
 </head>
 <body>
-${options.preview ? `<div style="position:relative;width:${PAGE_PX_W}px;height:${PAGE_PX_H}px;overflow:hidden;padding:${PAGE_MM.marginTop}mm ${PAGE_MM.marginX}mm 0;box-sizing:border-box;background:#fff">` : ''}
+${options.preview ? `<div style="position:relative;width:${PAGE_PX_W}px;height:${PAGE_PX_H}px;overflow:hidden;padding:${PAGE_MM.marginTop}mm ${PAGE_MM.marginX}mm 0;box-sizing:border-box;background:#fff"><div style="position:absolute;left:${PAGE_MM.marginX}mm;right:${PAGE_MM.marginX}mm;top:0">${buildRunningHeaderHtml(brand)}</div>` : ''}
 <div class="hd">
-  <header class="hd-header">
+  ${options.browserPrint ? `<header class="hd-header">
     <div>${
       brand.logoUrl
         ? `<img src="${escapeHtml(brand.logoUrl)}" class="hd-logo" style="width:${Number(brand.logoWidth) || 140}px" alt="Logo">`
@@ -152,7 +172,7 @@ ${options.preview ? `<div style="position:relative;width:${PAGE_PX_W}px;height:$
       ${brand.legalEntity ? `<div class="legal">${escapeHtml(brand.legalEntity)}</div>` : ''}
       ${brand.contactInfo ? `<div>${escapeHtml(brand.contactInfo)}</div>` : ''}
     </div>
-  </header>
+  </header>` : ''}
   <div class="hd-titlebox">
     <h1 class="hd-title">${escapeHtml(doc.title || 'Document title')}</h1>
     ${doc.subtitle ? `<p class="hd-subtitle">${escapeHtml(doc.subtitle)}</p>` : ''}
@@ -173,13 +193,20 @@ ${
 </html>`;
 }
 
-/** Footer printed by Chromium in the bottom margin of every page ("Page 2 of 3" is filled in by Chromium). */
+/**
+ * Footer printed by Chromium in the bottom margin of every page ("Page 2 of 3" is filled in by Chromium).
+ * It is placed with absolute coordinates (Chromium adds its own offset to text that is not placed) and has the
+ * same rule, spacing and font size as the footer the editor draws on each page.
+ */
 export function buildFooterTemplate(doc: any, fontCss = ''): string {
   const left = footerLeftText(doc);
-  return `<style>${fontCss}</style><div style="width:100%;box-sizing:border-box;padding:0 ${PAGE_MM.marginX}mm;font-family:'Inter Variable',Inter,-apple-system,Helvetica,Arial,sans-serif;font-size:8px;color:#94a3b8;-webkit-print-color-adjust:exact;">
-    <div style="display:flex;justify-content:space-between;border-top:1px solid #e2e8f0;padding-top:6px;">
-      <span>${escapeHtml(left)}</span>
-      <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
-    </div>
+  return `<style>${fontCss}</style><div style="position:absolute;left:${PAGE.marginX}px;right:${PAGE.marginX}px;bottom:0;height:${PAGE.marginBottom - 12}px;box-sizing:border-box;border-top:1px solid #e2e8f0;padding-top:8px;display:flex;justify-content:space-between;gap:16px;font-family:'Inter Variable',Inter,-apple-system,Helvetica,Arial,sans-serif;font-size:10px;line-height:14px;color:#94a3b8;-webkit-print-color-adjust:exact;">
+    <span>${escapeHtml(left)}</span>
+    <span style="white-space:nowrap">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
   </div>`;
+}
+
+/** Header printed by Chromium in the top margin of every page: the same one the editor shows on each page. */
+export function buildHeaderTemplate(doc: any, fontCss = ''): string {
+  return `<style>${fontCss}</style><div style="position:absolute;left:${PAGE.marginX}px;right:${PAGE.marginX}px;top:0;">${buildRunningHeaderHtml(doc.branding || {})}</div>`;
 }

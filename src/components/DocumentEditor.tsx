@@ -15,7 +15,7 @@ import { Autocorrect } from '../extensions/Autocorrect';
 import { HuskImage, ImageUpload, insertImageFiles, isImageFile } from '../extensions/ImageUpload';
 import { addUserWord, loadSpellChecker } from '../utils/spell';
 import type { PaginationPlan } from '../extensions/Pagination';
-import { footerLeftTextFor, footerSuffix } from '../shared/printDocument';
+import { buildRunningHeaderHtml, footerLeftTextFor, footerSuffix } from '../shared/printDocument';
 import { PAGE, buildDocumentCss, buildEditorChromeCss } from '../shared/documentLayout';
 import { HuskDocument, MetadataField } from '../types';
 import { Toolbar } from './Toolbar';
@@ -269,26 +269,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 paddingRight: PAGE.marginX,
               }}
             >
-              <header className="hd-header">
-                <div>
-                  {doc.branding.logoUrl ? (
-                    <img
-                      src={doc.branding.logoUrl}
-                      alt={doc.branding.companyName}
-                      className="hd-logo"
-                      style={{ width: doc.branding.logoWidth }}
-                      onLoad={schedulePagination}
-                    />
-                  ) : (
-                    <span className="hd-company">{doc.branding.companyName || 'Company'}</span>
-                  )}
-                </div>
-                <div className="hd-right">
-                  <div className="legal">{doc.branding.legalEntity}</div>
-                  <div>{doc.branding.contactInfo}</div>
-                </div>
-              </header>
-
               <div className="hd-titlebox">
                 <input
                   type="text"
@@ -435,6 +415,15 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               )}
             </div>
 
+            {/* The header sits in the top margin of every page */}
+            {Array.from({ length: pages }, (_, k) => (
+              <div
+                key={`header-${k}`}
+                style={{ position: 'absolute', zIndex: 2, left: PAGE.marginX, right: PAGE.marginX, top: k * PITCH }}
+                dangerouslySetInnerHTML={{ __html: buildRunningHeaderHtml(doc.branding) }}
+              />
+            ))}
+
             {/* Page footers sit in the bottom margin of every page */}
             {doc.footerConfig.enabled &&
               Array.from({ length: pages }, (_, k) => (
@@ -452,6 +441,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     paddingTop: 8,
                     borderTop: '1px solid #e2e8f0',
                     fontSize: 10,
+                    lineHeight: '14px',
                     color: '#94a3b8',
                   }}
                 >

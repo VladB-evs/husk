@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFooterTemplate, buildPrintHtml, escapeHtml, footerLeftTextFor, footerSuffix, markRowGroups, promoteHeaderRows } from './printDocument';
+import { buildFooterTemplate, buildHeaderTemplate, buildPrintHtml, escapeHtml, footerLeftTextFor, footerSuffix, markRowGroups, promoteHeaderRows } from './printDocument';
 
 const doc = (over: Record<string, unknown> = {}) => ({
   title: 'Quarterly <report>',
@@ -147,5 +147,24 @@ describe('buildFooterTemplate', () => {
 
   it('escapes the footer text', () => {
     expect(buildFooterTemplate(doc({ footerConfig: { enabled: true, leftText: '<img src=x>' } }))).not.toContain('<img');
+  });
+});
+
+describe('page header', () => {
+  it('prints the logo row on every page through the header template, not once in the body', () => {
+    const header = buildHeaderTemplate(doc());
+    expect(header).toContain('Acme');
+    expect(header).toContain('Acme &amp; Sons');
+    expect(header).toContain('a@b.c');
+    expect(buildPrintHtml(doc())).not.toContain('<header');
+  });
+
+  it('keeps the logo row in the body for plain browser printing, which has no header template', () => {
+    expect(buildPrintHtml(doc(), { browserPrint: true })).toContain('<header');
+  });
+
+  it('shows the logo picture when there is one', () => {
+    const header = buildHeaderTemplate(doc({ branding: { ...doc().branding, logoUrl: 'data:image/png;base64,AAAA' } }));
+    expect(header).toContain('<img src="data:image/png;base64,AAAA"');
   });
 });
