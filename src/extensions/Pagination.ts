@@ -5,6 +5,7 @@ import type { EditorView } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { TableMap } from '@tiptap/pm/tables';
 import { planPages } from './planner';
+import { CODE_PAD_X, PAGE } from '../shared/documentLayout';
 import { collectPieces, generatedHeight, isSplittable, leadingTextHeight } from './measure';
 import type { BlockInput, PaginationPlan, Spacer } from './planner';
 
@@ -163,6 +164,23 @@ function spacerStillValid(doc: PMNode, s: Spacer): boolean {
   }
 }
 
+/**
+ * A page cut inside a code block: the gray block would run on through the page margins and the dark gap between
+ * the pages. The spacer paints the page there instead (white paper, dark gap, white paper), over the full width
+ * of the block, so the code reads as two blocks, one on each page, like in the PDF.
+ */
+function codeGapMask(h: number): string {
+  const end = Math.max(0, h - PAGE.marginTop); // where the gap ends and the next page starts
+  const start = Math.max(0, end - PAGE.gap); // where the page ends
+  const mid = (start + end) / 2;
+  // The gap is the dark backdrop with the soft shadow of the pages on it: darker right below a page
+  return (
+    `margin:0 -${CODE_PAD_X}px;` +
+    `background:linear-gradient(to bottom,#fff 0,#fff ${start}px,rgb(7,7,6) ${start}px,rgb(13,12,12) ${mid}px,` +
+    `rgb(15,14,13) ${end}px,#fff ${end}px);`
+  );
+}
+
 function widgetFor(doc: PMNode, s: Spacer): Decoration[] {
   const key = `${s.kind}-${s.pos}-${s.h.toFixed(1)}`;
   if (s.kind === 'block') {
@@ -180,6 +198,7 @@ function widgetFor(doc: PMNode, s: Spacer): Decoration[] {
   }
   if (s.kind === 'li' || s.kind === 'inline') {
     const tag = s.kind === 'li' ? 'li' : 'span';
+    const inCode = s.kind === 'inline' && doc.resolve(s.pos).parent.type.name === 'codeBlock';
     return [Decoration.widget(
       s.pos,
       () => {
@@ -187,9 +206,10 @@ function widgetFor(doc: PMNode, s: Spacer): Decoration[] {
         e.className = 'husk-pg-spacer';
         e.contentEditable = 'false';
         e.style.cssText = `display:block;height:${s.h}px;list-style:none;`;
+        if (inCode) e.style.cssText += codeGapMask(s.h);
         return e;
       },
-      { side: -1, key, ignoreSelection: true }
+      { side: -1, key: inCode ? `${key}-code` : key, ignoreSelection: true }
     )];
   }
   const table = doc.resolve(s.pos).parent;

@@ -13,6 +13,25 @@ export function escapeHtml(str: unknown): string {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * The footer reads "<document title> | <text>". People only write the text; the title always comes from the
+ * document. A stored footer text such as "Old title | Confidential" keeps what follows the first "|".
+ */
+export function footerSuffix(leftText: string | undefined): string {
+  const text = leftText ?? '';
+  const bar = text.indexOf('|');
+  return (bar < 0 ? text : text.slice(bar + 1)).trim();
+}
+
+/** The value to store for a footer text that the user typed. */
+export function footerLeftTextFor(suffix: string): string {
+  return suffix.trim() ? `| ${suffix.trim()}` : '';
+}
+
+export function footerLeftText(doc: any): string {
+  return [String(doc.title ?? '').trim(), footerSuffix(doc.footerConfig?.leftText)].filter(Boolean).join(' | ');
+}
+
 const PAGE_PX_W = Math.round((PAGE_MM.width * 96) / 25.4);
 const PAGE_PX_H = Math.round((PAGE_MM.height * 96) / 25.4);
 
@@ -145,7 +164,7 @@ ${options.preview ? `<div style="position:relative;width:${PAGE_PX_W}px;height:$
 ${
   options.preview
     ? `<div style="position:absolute;left:${PAGE_MM.marginX}mm;right:${PAGE_MM.marginX}mm;bottom:${PAGE_MM.marginBottom - 12 / 3.7795}mm;display:flex;justify-content:space-between;border-top:1px solid #e2e8f0;padding-top:6px;font-family:Inter,Helvetica,Arial,sans-serif;font-size:10px;color:#94a3b8">
-        <span>${escapeHtml(doc.footerConfig?.enabled === false ? '' : doc.footerConfig?.leftText || '')}</span>
+        <span>${escapeHtml(doc.footerConfig?.enabled === false ? '' : footerLeftText(doc))}</span>
         <span>${doc.footerConfig?.enabled === false ? '' : 'Page 1 of 1'}</span>
       </div></div>`
     : ''
@@ -156,7 +175,7 @@ ${
 
 /** Footer printed by Chromium in the bottom margin of every page ("Page 2 of 3" is filled in by Chromium). */
 export function buildFooterTemplate(doc: any, fontCss = ''): string {
-  const left = doc.footerConfig?.leftText || (doc.title ? `${doc.title} | Confidential` : 'Confidential');
+  const left = footerLeftText(doc);
   return `<style>${fontCss}</style><div style="width:100%;box-sizing:border-box;padding:0 ${PAGE_MM.marginX}mm;font-family:'Inter Variable',Inter,-apple-system,Helvetica,Arial,sans-serif;font-size:8px;color:#94a3b8;-webkit-print-color-adjust:exact;">
     <div style="display:flex;justify-content:space-between;border-top:1px solid #e2e8f0;padding-top:6px;">
       <span>${escapeHtml(left)}</span>

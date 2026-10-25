@@ -15,6 +15,7 @@ import { Autocorrect } from '../extensions/Autocorrect';
 import { HuskImage, ImageUpload, insertImageFiles, isImageFile } from '../extensions/ImageUpload';
 import { addUserWord, loadSpellChecker } from '../utils/spell';
 import type { PaginationPlan } from '../extensions/Pagination';
+import { footerLeftTextFor, footerSuffix } from '../shared/printDocument';
 import { PAGE, buildDocumentCss, buildEditorChromeCss } from '../shared/documentLayout';
 import { HuskDocument, MetadataField } from '../types';
 import { Toolbar } from './Toolbar';
@@ -454,12 +455,23 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     color: '#94a3b8',
                   }}
                 >
-                  <input
-                    type="text"
-                    value={doc.footerConfig.leftText}
-                    style={{ width: '60%' }}
-                    onChange={(e) => touch({ footerConfig: { ...doc.footerConfig, leftText: e.target.value } })}
-                  />
+                  <span style={{ display: 'flex', width: '60%', minWidth: 0, gap: 4 }}>
+                    {doc.title.trim() && (
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>
+                        {doc.title.trim()}
+                        {footerSuffix(doc.footerConfig.leftText) ? ' |' : ''}
+                      </span>
+                    )}
+                    <input
+                      type="text"
+                      value={footerSuffix(doc.footerConfig.leftText)}
+                      placeholder="Confidential"
+                      style={{ flex: 1, minWidth: 0 }}
+                      onChange={(e) =>
+                        touch({ footerConfig: { ...doc.footerConfig, leftText: footerLeftTextFor(e.target.value) } })
+                      }
+                    />
+                  </span>
                   <span style={{ whiteSpace: 'nowrap' }}>
                     Page {k + 1} of {pages}
                   </span>

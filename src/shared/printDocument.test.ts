@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildFooterTemplate, buildPrintHtml, escapeHtml, markRowGroups, promoteHeaderRows } from './printDocument';
+import { buildFooterTemplate, buildPrintHtml, escapeHtml, footerLeftTextFor, footerSuffix, markRowGroups, promoteHeaderRows } from './printDocument';
 
 const doc = (over: Record<string, unknown> = {}) => ({
   title: 'Quarterly <report>',
@@ -124,9 +124,25 @@ describe('empty paragraphs', () => {
 describe('buildFooterTemplate', () => {
   it('shows the footer text and lets Chromium fill in the page numbers', () => {
     const html = buildFooterTemplate(doc());
-    expect(html).toContain('Acme | Confidential');
+    expect(html).toContain('Quarterly &lt;report&gt; | Confidential');
     expect(html).toContain('class="pageNumber"');
     expect(html).toContain('class="totalPages"');
+  });
+
+  it('always starts with the title of the document, whatever title is stored in the footer text', () => {
+    const html = buildFooterTemplate(doc({ title: 'New name', footerConfig: { enabled: true, leftText: 'Old name | Internal' } }));
+    expect(html).toContain('New name | Internal');
+    expect(html).not.toContain('Old name');
+  });
+
+  it('shows only the title when the text after it is empty, and only the text when there is no title', () => {
+    expect(buildFooterTemplate(doc({ title: 'Plan', footerConfig: { enabled: true, leftText: '' } }))).toContain('<span>Plan</span>');
+    expect(buildFooterTemplate(doc({ title: '', footerConfig: { enabled: true, leftText: '| Draft' } }))).toContain('<span>Draft</span>');
+  });
+
+  it('keeps a "|" that the user types in the text after the title', () => {
+    expect(footerSuffix(footerLeftTextFor('A | B'))).toBe('A | B');
+    expect(footerSuffix('Just text')).toBe('Just text');
   });
 
   it('escapes the footer text', () => {

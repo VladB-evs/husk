@@ -17,6 +17,9 @@ export const PAGE = {
   gap: 28, // visual gap between pages in the editor
 } as const;
 
+/** Left and right padding of a code block, in px. The editor's page-gap mask reaches over it. */
+export const CODE_PAD_X = 12;
+
 export interface DocumentCssBrand {
   primaryColor: string;
   accentColor: string;
@@ -82,9 +85,10 @@ export function buildDocumentCss(brand: DocumentCssBrand, mode: DocumentCssMode)
 .hd-body li p { margin:0; }
 .hd-body blockquote { border-left:3px solid ${primary}; padding-left:12px; margin:12px 0; color:#475569; font-style:italic; }
 .hd-body blockquote p { margin:0; padding:3px 0 5px; }
-.hd-body pre { background:#f1f5f9; border:1px solid ${border}; border-radius:6px; padding:10px 12px; margin:12px 0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; line-height:1.5; color:#0f172a; }
+/* A code block has no vertical padding and no border: Chromium keeps room for them at every page cut, so the page would
+   break one line earlier in the PDF than in the editor. The gray band is the lines themselves. */
+.hd-body pre { background:#f1f5f9; border-radius:4px; padding:0 ${CODE_PAD_X}px; margin:12px 0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; line-height:1.6; color:#0f172a; }
 .hd-body pre, .hd-edit .ProseMirror pre { white-space:pre-wrap; overflow-wrap:anywhere; }
-.hd-body pre { break-inside:auto; }
 .hljs-comment, .hljs-quote { color:#6a737d; font-style:italic; }
 .hljs-keyword, .hljs-selector-tag, .hljs-doctag, .hljs-type { color:#d73a49; }
 .hljs-string, .hljs-regexp, .hljs-addition { color:#032f62; }

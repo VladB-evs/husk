@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { DocumentTemplate, HuskDocument } from '../types';
 import { TemplatePreview } from './TemplatePreview';
+import { footerLeftTextFor, footerSuffix } from '../shared/printDocument';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
   ArrowLeft,
@@ -647,11 +648,12 @@ const TemplateEditor: React.FC<{
             }
           >
             {template.footerConfig.enabled && (
-              <Field label="Footer text (page numbers are added on the right)">
+              <Field label="Footer text after the document title (page numbers are added on the right)">
                 <input
                   type="text"
-                  value={template.footerConfig.leftText}
-                  onChange={(e) => updateFooter({ leftText: e.target.value })}
+                  value={footerSuffix(template.footerConfig.leftText)}
+                  placeholder="Confidential"
+                  onChange={(e) => updateFooter({ leftText: footerLeftTextFor(e.target.value) })}
                   className={inputCls}
                 />
               </Field>
