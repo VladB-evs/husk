@@ -104,13 +104,14 @@ export function buildDocumentCss(brand: DocumentCssBrand, mode: DocumentCssMode)
 .hd-body hr { border:0; border-top:1.5px solid ${border}; margin:18px 0; }
 .hd-body img { display:block; max-width:100%; max-height:900px; width:auto; height:auto; margin:12px 0; }
 .hd-body td img, .hd-body th img { margin:6px 0; }
-.hd-body figure.husk-image-figure { display:block; max-width:100%; margin:14px 0; box-sizing:border-box; break-inside:avoid; page-break-inside:avoid; }
-.hd-body figure.husk-image-figure[data-align="center"] { margin-left:auto !important; margin-right:auto !important; text-align:center; }
-.hd-body figure.husk-image-figure[data-align="left"] { margin-left:0 !important; margin-right:auto !important; text-align:left; }
-.hd-body figure.husk-image-figure[data-align="right"] { margin-left:auto !important; margin-right:0 !important; text-align:right; }
+.hd-body figure.husk-image-figure { max-width:100%; box-sizing:border-box; break-inside:avoid; page-break-inside:avoid; vertical-align:top; }
+.hd-body figure.husk-image-figure[data-align="center"] { display:block; float:none; clear:both; margin:14px auto !important; text-align:center; }
+.hd-body figure.husk-image-figure[data-align="left"] { display:block; float:left; clear:none; margin:10px 1.5% 10px 0 !important; text-align:left; }
+.hd-body figure.husk-image-figure[data-align="right"] { display:block; float:right; clear:none; margin:10px 0 10px 1.5% !important; text-align:right; }
 .hd-body figure.husk-image-figure img { display:block; width:100% !important; max-width:100%; height:auto !important; margin:0 !important; border-radius:4px; }
 .hd-body figure.husk-image-figure figcaption.husk-image-caption { font-size:11.5px; line-height:1.45; color:#64748b; font-style:italic; margin-top:6px; margin-bottom:0; word-break:break-word; }
-.hd-body td figure.husk-image-figure, .hd-body th figure.husk-image-figure { margin:6px 0; }
+.hd-body td figure.husk-image-figure, .hd-body th figure.husk-image-figure { margin:6px 0; float:none; }
+.hd-body h1, .hd-body h2, .hd-body h3, .hd-body table, .hd-body hr, .hd-body .husk-page-break, .hd-body > p { clear:both; }
 .hd-body { orphans:2; widows:2; }
 .hd-body h1, .hd-body h2, .hd-body h3, .hd-body img, .hd-body figure, .hd-body tr { break-inside:avoid; page-break-inside:avoid; }
 .hd-body tr[data-keep] { break-after:avoid; page-break-after:avoid; }
@@ -141,6 +142,9 @@ export function buildEditorChromeCss(): string {
 .hd-edit .ProseMirror .husk-image-caption-input:hover { background:rgba(0,0,0,.03); }
 .hd-edit .ProseMirror .husk-image-caption-input:focus { background:#f8fafc; color:#0f172a; box-shadow:inset 0 0 0 1px #cbd5e1; }
 .hd-edit .ProseMirror .husk-image-caption-input::placeholder { color:#94a3b8; font-style:italic; }
+.hd-edit .husk-image-drag-handle { position:absolute; top:6px; left:6px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; background:rgba(18,17,16,.85); border:1px solid #322f2a; border-radius:4px; color:#a8a29e; cursor:grab; z-index:20; backdrop-filter:blur(4px); transition:all .15s; user-select:none; }
+.hd-edit .husk-image-drag-handle:hover { background:#FF4C00; border-color:#FF4C00; color:#ffffff; }
+.hd-edit .husk-image-drag-handle:active { cursor:grabbing; }
 .hd-edit .husk-image-resizer { position:absolute; width:10px; height:10px; background:#ffffff; border:2px solid #FF4C00; border-radius:2px; z-index:10; box-shadow:0 1px 3px rgba(0,0,0,.25); }
 .hd-edit .husk-image-resizer-br { right:-5px; bottom:-5px; cursor:nwse-resize; }
 .hd-edit .husk-image-resizer-bl { left:-5px; bottom:-5px; cursor:nesw-resize; }

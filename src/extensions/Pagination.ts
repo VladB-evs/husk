@@ -78,15 +78,31 @@ export function computePlan(view: EditorView, env: PaginationEnv): PaginationPla
   const yOf = (el: Element) => (el.getBoundingClientRect().top - sheetRect.top) / scale;
 
   const blocks: BlockInput[] = [];
+  let prevDomTop: number | null = null;
+  let prevIsFloat = false;
+
   view.state.doc.forEach((node, offset) => {
     const el = view.nodeDOM(offset) as HTMLElement | null;
     if (!el || el.nodeType !== 1) return;
     const cs = getComputedStyle(el);
+    const domTop = yOf(el);
+    const isImage = node.type.name === 'image';
+    const isFloat = isImage && (node.attrs.alignment === 'left' || node.attrs.alignment === 'right');
+    const sameRowAsPrev = Boolean(
+      isFloat &&
+      prevIsFloat &&
+      prevDomTop !== null &&
+      Math.abs(domTop - prevDomTop) < 20
+    );
+    prevIsFloat = isFloat;
+    prevDomTop = domTop;
+
     const base = {
       pos: offset,
       h: el.getBoundingClientRect().height / scale,
       mt: px(cs.marginTop),
       mb: px(cs.marginBottom),
+      sameRowAsPrev,
     };
 
     if (node.type.name === 'pageBreak') {

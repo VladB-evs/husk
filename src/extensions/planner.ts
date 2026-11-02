@@ -67,6 +67,7 @@ export interface BlockInput {
   getPieces?: () => PieceInput[] | null;
   naturalHeight?: number;
   headerRow?: boolean;
+  sameRowAsPrev?: boolean;
 }
 
 export interface PlanInput {
@@ -106,9 +107,20 @@ export function planPages(input: PlanInput): PaginationPlan {
   let prevMb = 0;
   let contentEnd = editorTop; // bottom of the last real content
   let forcedTarget: number | null = null; // set after a page break
+  let rowStartTop = editorTop;
+  let currentRowH = 0;
+  let rowTarget: number | null = null;
 
   blocks.forEach((block, i) => {
-    const natTop = i === 0 ? cursor + block.mt : cursor + Math.max(prevMb, block.mt);
+    let natTop: number;
+    if (block.sameRowAsPrev && i > 0) {
+      natTop = rowStartTop;
+    } else {
+      natTop = i === 0 ? cursor + block.mt : cursor + Math.max(prevMb, block.mt);
+      rowStartTop = natTop;
+      currentRowH = 0;
+      rowTarget = null;
+    }
 
     if (block.kind === 'pageBreak') {
       forcedTarget = contentTop(pageOf(contentEnd - 0.01) + 1);
@@ -225,25 +237,39 @@ export function planPages(input: PlanInput): PaginationPlan {
     }
 
     let target: number | null = null;
-    if (forcedTarget !== null) {
+    if (block.sameRowAsPrev && rowTarget !== null) {
+      target = rowTarget;
+    } else if (forcedTarget !== null) {
       target = forcedTarget;
       forcedTarget = null;
     } else {
       target = moveTarget(natTop, needed, contentH);
     }
+    if (!block.sameRowAsPrev) {
+      rowTarget = target;
+    }
 
     let top = natTop;
     if (target !== null) {
-      const before = i === 0 ? editorTop : cursor + prevMb;
+      const before = block.sameRowAsPrev ? rowStartTop - block.mt : (i === 0 ? editorTop : cursor + prevMb);
       const spacerH = target - before - block.mt;
       if (spacerH > 0.5) {
         spacers.push({ kind: 'block', pos: block.pos, h: spacerH });
         top = target;
       }
     }
-    cursor = top + block.h;
-    prevMb = block.mb;
-    contentEnd = cursor;
+
+    if (block.sameRowAsPrev && i > 0) {
+      currentRowH = Math.max(currentRowH, block.h);
+      cursor = top + currentRowH;
+      prevMb = Math.max(prevMb, block.mb);
+      contentEnd = cursor;
+    } else {
+      currentRowH = block.h;
+      cursor = top + block.h;
+      prevMb = block.mb;
+      contentEnd = cursor;
+    }
   });
 
   let bottom = cursor;

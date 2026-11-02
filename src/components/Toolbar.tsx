@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Editor } from '@tiptap/react';
 import { insertImageFiles } from '../extensions/ImageUpload';
 import { toggleCodeBlock } from '../extensions/codeBlockCommand';
+import { insertPageBreak } from '../extensions/PageBreak';
 import {
   Bold,
   Italic,
@@ -410,12 +411,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           <Minus className="w-4 h-4" />
         </button>
         <button
-          onClick={() => editor.chain().focus().insertContent({ type: 'pageBreak' }).run()}
-          title="Insert Page Break (Starts Next Page like Word / Pages)"
+          onClick={() => insertPageBreak(editor)}
+          title="Insert Page Break / End Page (⌘Return — Starts next page and fixes it in place)"
           className="px-2 py-1 rounded-lg text-stone-300 hover:text-[#FF4C00] hover:bg-[#22201d] border border-[#2e2a24] text-[11px] font-medium flex items-center gap-1 transition"
         >
           <FileDown className="w-3.5 h-3.5 text-[#FF4C00]" />
-          <span className="hidden min-[1100px]:inline">Page Break</span>
+          <span className="hidden min-[1100px]:inline">End Page (⌘↵)</span>
         </button>
       </div>
 

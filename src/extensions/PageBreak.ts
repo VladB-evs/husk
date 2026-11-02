@@ -1,4 +1,9 @@
 import { Node, mergeAttributes } from '@tiptap/react';
+import type { Editor } from '@tiptap/react';
+
+export function insertPageBreak(editor: Editor): boolean {
+  return editor.chain().focus().insertContent({ type: 'pageBreak' }).createParagraphNear().run();
+}
 
 export const PageBreak = Node.create({
   name: 'pageBreak',
@@ -27,5 +32,12 @@ export const PageBreak = Node.create({
       }),
       ['span', { class: 'husk-page-break-tag' }, '📄 Page Break — Starts Next Page'],
     ];
+  },
+
+  addKeyboardShortcuts() {
+    return {
+      'Mod-Enter': () => insertPageBreak(this.editor),
+      'Mod-Return': () => insertPageBreak(this.editor),
+    };
   },
 });

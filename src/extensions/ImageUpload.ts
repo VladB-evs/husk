@@ -23,6 +23,7 @@ export class HuskImageView implements NodeView {
   dom: HTMLElement;
   wrapper: HTMLElement;
   img: HTMLImageElement;
+  dragHandle: HTMLElement;
   handleBr: HTMLElement;
   handleBl: HTMLElement;
   badge: HTMLElement;
@@ -44,6 +45,7 @@ export class HuskImageView implements NodeView {
     this.dom = document.createElement('figure');
     this.dom.className = 'husk-image-figure';
     this.dom.tabIndex = -1;
+    this.dom.setAttribute('draggable', 'true');
 
     this.wrapper = document.createElement('div');
     this.wrapper.style.position = 'relative';
@@ -52,10 +54,15 @@ export class HuskImageView implements NodeView {
     this.wrapper.style.lineHeight = '0';
 
     this.img = document.createElement('img');
-    this.img.draggable = false;
     this.img.src = node.attrs.src || '';
     this.img.alt = node.attrs.alt || '';
     this.img.title = node.attrs.title || '';
+
+    this.dragHandle = document.createElement('div');
+    this.dragHandle.className = 'husk-image-drag-handle';
+    this.dragHandle.title = 'Drag to move picture';
+    this.dragHandle.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>`;
+    this.dragHandle.style.display = 'none';
 
     this.handleBr = document.createElement('div');
     this.handleBr.className = 'husk-image-resizer husk-image-resizer-br';
@@ -70,6 +77,7 @@ export class HuskImageView implements NodeView {
     this.badge.style.display = 'none';
 
     this.wrapper.appendChild(this.img);
+    this.wrapper.appendChild(this.dragHandle);
     this.wrapper.appendChild(this.handleBr);
     this.wrapper.appendChild(this.handleBl);
     this.wrapper.appendChild(this.badge);
@@ -90,6 +98,22 @@ export class HuskImageView implements NodeView {
   }
 
   setupEvents() {
+    this.dom.addEventListener('mouseenter', () => {
+      this.dragHandle.style.display = 'flex';
+    });
+
+    this.dom.addEventListener('mouseleave', () => {
+      if (!this.isSelected) this.dragHandle.style.display = 'none';
+    });
+
+    this.dragHandle.addEventListener('mousedown', () => {
+      const pos = this.getPos();
+      if (typeof pos === 'number') {
+        const sel = NodeSelection.create(this.view.state.doc, pos);
+        this.view.dispatch(this.view.state.tr.setSelection(sel));
+      }
+    });
+
     this.img.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
       const pos = this.getPos();
@@ -102,6 +126,7 @@ export class HuskImageView implements NodeView {
     this.captionInput.addEventListener('focus', () => {
       this.isSelected = true;
       this.dom.classList.add('is-selected');
+      this.dragHandle.style.display = 'flex';
       this.handleBr.style.display = 'block';
       this.handleBl.style.display = 'block';
       this.captionInput.style.display = 'block';
@@ -281,20 +306,6 @@ export class HuskImageView implements NodeView {
     this.dom.style.maxWidth = '100%';
     this.dom.style.width = width || '100%';
 
-    if (alignment === 'left') {
-      this.dom.style.marginLeft = '0';
-      this.dom.style.marginRight = 'auto';
-      this.dom.style.textAlign = 'left';
-    } else if (alignment === 'right') {
-      this.dom.style.marginLeft = 'auto';
-      this.dom.style.marginRight = '0';
-      this.dom.style.textAlign = 'right';
-    } else {
-      this.dom.style.marginLeft = 'auto';
-      this.dom.style.marginRight = 'auto';
-      this.dom.style.textAlign = 'center';
-    }
-
     if (document.activeElement !== this.captionInput && this.captionInput.value !== caption) {
       this.captionInput.value = caption || '';
     }
@@ -314,6 +325,7 @@ export class HuskImageView implements NodeView {
   selectNode() {
     this.isSelected = true;
     this.dom.classList.add('is-selected');
+    this.dragHandle.style.display = 'flex';
     this.handleBr.style.display = 'block';
     this.handleBl.style.display = 'block';
     this.updateCaptionVisibility();
@@ -322,6 +334,7 @@ export class HuskImageView implements NodeView {
   deselectNode() {
     this.isSelected = false;
     this.dom.classList.remove('is-selected');
+    this.dragHandle.style.display = 'none';
     this.handleBr.style.display = 'none';
     this.handleBl.style.display = 'none';
     this.updateCaptionVisibility();
@@ -340,6 +353,9 @@ export class HuskImageView implements NodeView {
     }
     if (this.isResizing) {
       return true;
+    }
+    if (event.type === 'dragstart' || event.type === 'drag') {
+      return false;
     }
     return false;
   }
@@ -446,17 +462,10 @@ export const HuskImage = Image.extend({
     const width = node.attrs.width || '100%';
     const caption = (node.attrs.caption || '').trim();
 
-    const marginStyle =
-      align === 'left'
-        ? 'margin-left:0;margin-right:auto;text-align:left;'
-        : align === 'right'
-        ? 'margin-left:auto;margin-right:0;text-align:right;'
-        : 'margin-left:auto;margin-right:auto;text-align:center;';
-
     const figureAttrs: Record<string, string> = {
       class: 'husk-image-figure',
       'data-align': align,
-      style: `max-width:100%;width:${width};${marginStyle}`,
+      style: `max-width:100%;width:${width};`,
     };
 
     const imgAttrs: Record<string, string> = {
