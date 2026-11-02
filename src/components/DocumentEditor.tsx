@@ -12,7 +12,7 @@ import { PageBreak } from '../extensions/PageBreak';
 import { CustomTable, CustomTableRow, CustomTableCell, CustomTableHeader, TableKeys } from '../extensions/CustomTable';
 import { Pagination, SIGNOFF_MARGIN } from '../extensions/Pagination';
 import { Autocorrect } from '../extensions/Autocorrect';
-import { HuskImage, ImageUpload, insertImageFiles, isImageFile } from '../extensions/ImageUpload';
+import { HuskImage, HuskImageRow, ImageUpload, insertImageFiles, isImageFile } from '../extensions/ImageUpload';
 import { addUserWord, loadSpellChecker } from '../utils/spell';
 import type { PaginationPlan } from '../extensions/Pagination';
 import { buildRunningHeaderHtml, footerLeftTextFor, footerSuffix } from '../shared/printDocument';
@@ -97,6 +97,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       CustomTableCell,
       TableKeys,
       PageBreak,
+      HuskImageRow,
       HuskImage,
       ImageUpload,
       Autocorrect.configure({ isEnabled: () => autocorrectRef.current }),

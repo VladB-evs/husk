@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/react';
+import { Extension, Node, mergeAttributes } from '@tiptap/react';
 import type { Editor } from '@tiptap/react';
 import { Image } from '@tiptap/extension-image';
 import { Plugin, PluginKey, TextSelection, NodeSelection } from '@tiptap/pm/state';
@@ -6,10 +6,14 @@ import type { EditorView, NodeView, ViewMutationRecord } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
 
 /*
- * Pictures in the document body. An image is a block of its own. It is stored in the document HTML as a
- * data: URL, so the document file and the PDF export need no other file. Big pictures are made smaller
- * first, so the document file stays small.
+ * Pictures in the document body. An image is a block of its own or in an imageRow.
+ * It is stored in the document HTML as a data: URL, so the document file and the PDF export need no other file.
+ * Big pictures are made smaller first, so the document file stays small.
  */
+
+// Track dragged image position across view instances for side-by-side drops
+let currentDraggedImagePos: number | null = null;
+let currentDraggedImageNode: PMNode | null = null;
 
 // The text column is 674 px wide. 1600 px is still sharp on paper and keeps the file small.
 const MAX_SIDE = 1600;
@@ -89,6 +93,7 @@ export class HuskImageView implements NodeView {
     this.captionInput.value = node.attrs.caption || '';
     this.captionInput.autocomplete = 'off';
     this.captionInput.spellcheck = true;
+    this.captionInput.setAttribute('draggable', 'false');
 
     this.dom.appendChild(this.wrapper);
     this.dom.appendChild(this.captionInput);
@@ -212,6 +217,133 @@ export class HuskImageView implements NodeView {
 
     this.handleBr.addEventListener('mousedown', (e) => startResize(e, 'br'));
     this.handleBl.addEventListener('mousedown', (e) => startResize(e, 'bl'));
+
+    this.dom.addEventListener('dragstart', (e: DragEvent) => {
+      const pos = this.getPos();
+      if (typeof pos === 'number') {
+        currentDraggedImagePos = pos;
+        currentDraggedImageNode = this.node;
+        if (e.dataTransfer) {
+          e.dataTransfer.setData('application/x-husk-image-pos', String(pos));
+          e.dataTransfer.setData('text/plain', `[HUSK_IMAGE_POS:${pos}]`);
+          e.dataTransfer.effectAllowed = 'copyMove';
+        }
+      }
+    });
+
+    this.dom.addEventListener('dragend', () => {
+      currentDraggedImagePos = null;
+      currentDraggedImageNode = null;
+      this.clearDropIndicators();
+    });
+
+    this.dom.addEventListener('dragover', (e: DragEvent) => {
+      const hasFiles = Array.from(e.dataTransfer?.types || []).includes('Files');
+      const isImageDrag =
+        currentDraggedImagePos !== null ||
+        e.dataTransfer?.types.includes('application/x-husk-image-pos') ||
+        hasFiles;
+
+      if (!isImageDrag) return;
+
+      const currentPos = this.getPos();
+      if (typeof currentPos === 'number' && currentDraggedImagePos === currentPos) {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move';
+      }
+
+      const rect = this.dom.getBoundingClientRect();
+      const mouseX = e.clientX;
+      const isLeft = mouseX < rect.left + rect.width / 2;
+
+      if (isLeft) {
+        this.dom.classList.add('drop-target-left');
+        this.dom.classList.remove('drop-target-right');
+      } else {
+        this.dom.classList.add('drop-target-right');
+        this.dom.classList.remove('drop-target-left');
+      }
+    });
+
+    this.dom.addEventListener('dragleave', (e: DragEvent) => {
+      const rect = this.dom.getBoundingClientRect();
+      if (
+        e.clientX <= rect.left ||
+        e.clientX >= rect.right ||
+        e.clientY <= rect.top ||
+        e.clientY >= rect.bottom
+      ) {
+        this.clearDropIndicators();
+      }
+    });
+
+    this.dom.addEventListener('drop', (e: DragEvent) => {
+      const hadLeft = this.dom.classList.contains('drop-target-left');
+      const hadRight = this.dom.classList.contains('drop-target-right');
+      this.clearDropIndicators();
+
+      if (!hadLeft && !hadRight) return;
+
+      const side: 'left' | 'right' = hadLeft ? 'left' : 'right';
+      const targetPos = this.getPos();
+      if (typeof targetPos !== 'number') return;
+
+      let srcPos: number | null = currentDraggedImagePos;
+      if (srcPos === null && e.dataTransfer) {
+        const rawPos = e.dataTransfer.getData('application/x-husk-image-pos');
+        if (rawPos) {
+          const parsed = parseInt(rawPos, 10);
+          if (!isNaN(parsed)) srcPos = parsed;
+        }
+      }
+
+      if (typeof srcPos === 'number') {
+        if (srcPos === targetPos) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+        (this.view as any).dragging = null;
+        currentDraggedImagePos = null;
+        currentDraggedImageNode = null;
+
+        combineImagesSideBySide(this.view, srcPos, targetPos, side);
+        return;
+      }
+
+      const files = Array.from(e.dataTransfer?.files || []).filter(isImageFile);
+      if (files.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        (this.view as any).dragging = null;
+
+        void insertImageFilesNextTo(this.view, files, targetPos, side);
+        return;
+      }
+    });
+  }
+
+  isInImageRow(): boolean {
+    const pos = this.getPos();
+    if (typeof pos !== 'number') return false;
+    try {
+      const $pos = this.view.state.doc.resolve(pos);
+      return $pos.parent.type.name === 'imageRow';
+    } catch {
+      return false;
+    }
+  }
+
+  clearDropIndicators() {
+    this.dom.classList.remove('drop-target-left', 'drop-target-right');
   }
 
   onMouseMove = (e: MouseEvent) => {
@@ -302,9 +434,24 @@ export class HuskImageView implements NodeView {
     if (this.img.getAttribute('alt') !== alt) this.img.setAttribute('alt', alt || '');
     if (this.img.getAttribute('title') !== title) this.img.setAttribute('title', title || '');
 
-    this.dom.setAttribute('data-align', alignment);
-    this.dom.style.maxWidth = '100%';
-    this.dom.style.width = width || '100%';
+    const inRow = this.isInImageRow();
+    if (inRow) {
+      this.dom.classList.add('in-image-row');
+      this.dom.removeAttribute('data-align');
+      this.dom.style.width = '100%';
+      this.dom.style.maxWidth = '100%';
+      this.handleBr.style.display = 'none';
+      this.handleBl.style.display = 'none';
+    } else {
+      this.dom.classList.remove('in-image-row');
+      this.dom.setAttribute('data-align', alignment);
+      this.dom.style.maxWidth = '100%';
+      this.dom.style.width = width || '100%';
+      if (this.isSelected) {
+        this.handleBr.style.display = 'block';
+        this.handleBl.style.display = 'block';
+      }
+    }
 
     if (document.activeElement !== this.captionInput && this.captionInput.value !== caption) {
       this.captionInput.value = caption || '';
@@ -326,8 +473,10 @@ export class HuskImageView implements NodeView {
     this.isSelected = true;
     this.dom.classList.add('is-selected');
     this.dragHandle.style.display = 'flex';
-    this.handleBr.style.display = 'block';
-    this.handleBl.style.display = 'block';
+    if (!this.isInImageRow()) {
+      this.handleBr.style.display = 'block';
+      this.handleBl.style.display = 'block';
+    }
     this.updateCaptionVisibility();
   }
 
@@ -348,10 +497,17 @@ export class HuskImageView implements NodeView {
   }
 
   stopEvent(event: Event): boolean {
-    if (this.captionInput && this.captionInput.contains(event.target as Node)) {
+    if (this.captionInput && event.target instanceof Element && this.captionInput.contains(event.target)) {
       return true;
     }
     if (this.isResizing) {
+      return true;
+    }
+    if (
+      event.type === 'dragover' ||
+      event.type === 'dragleave' ||
+      event.type === 'drop'
+    ) {
       return true;
     }
     if (event.type === 'dragstart' || event.type === 'drag') {
@@ -368,6 +524,7 @@ export class HuskImageView implements NodeView {
   destroy() {
     window.removeEventListener('mousemove', this.onMouseMove);
     window.removeEventListener('mouseup', this.onMouseUp);
+    this.clearDropIndicators();
   }
 }
 
@@ -487,6 +644,280 @@ export const HuskImage = Image.extend({
     return ({ node, view, getPos }) => new HuskImageView(node, view, getPos);
   },
 });
+
+export const HuskImageRow = Node.create({
+  name: 'imageRow',
+  group: 'block',
+  content: 'image{1,4}',
+  defining: true,
+  isolating: true,
+
+  parseHTML() {
+    return [
+      {
+        tag: 'div.husk-image-row',
+      },
+    ];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, {
+        class: 'husk-image-row',
+      }),
+      0,
+    ];
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('huskImageRowCleanup'),
+        appendTransaction(transactions, _oldState, newState) {
+          if (!transactions.some((tr) => tr.docChanged)) return null;
+
+          let tr = newState.tr;
+          let modified = false;
+
+          const rowsToFix: { pos: number; node: PMNode }[] = [];
+          newState.doc.descendants((node, pos) => {
+            if (node.type.name === 'imageRow') {
+              if (node.childCount < 2) {
+                rowsToFix.push({ pos, node });
+              }
+              return false;
+            }
+          });
+
+          if (!rowsToFix.length) return null;
+
+          rowsToFix.reverse().forEach(({ pos, node }) => {
+            if (node.childCount === 0) {
+              tr = tr.delete(pos, pos + node.nodeSize);
+              modified = true;
+            } else if (node.childCount === 1) {
+              const child = node.child(0);
+              const normChild = child.type.create({
+                ...child.attrs,
+                width: child.attrs.width || '100%',
+                alignment: child.attrs.alignment || 'center',
+              });
+              tr = tr.replaceWith(pos, pos + node.nodeSize, normChild);
+              modified = true;
+            }
+          });
+
+          return modified ? tr : null;
+        },
+      }),
+    ];
+  },
+});
+
+export function combineImagesSideBySide(
+  view: EditorView,
+  srcPos: number,
+  targetPos: number,
+  side: 'left' | 'right'
+): boolean {
+  const { state, dispatch } = view;
+  const doc = state.doc;
+
+  const srcNode = doc.nodeAt(srcPos);
+  const targetNode = doc.nodeAt(targetPos);
+
+  if (!srcNode || !targetNode || srcNode.type.name !== 'image' || targetNode.type.name !== 'image') {
+    return false;
+  }
+
+  const $targetPos = doc.resolve(targetPos);
+  const isTargetInRow = $targetPos.parent.type.name === 'imageRow';
+  const $srcPos = doc.resolve(srcPos);
+  const isSrcInRow = $srcPos.parent.type.name === 'imageRow';
+
+  const normSrc = srcNode.type.create({
+    ...srcNode.attrs,
+    width: '100%',
+    alignment: 'center',
+  });
+  const normTarget = targetNode.type.create({
+    ...targetNode.attrs,
+    width: '100%',
+    alignment: 'center',
+  });
+
+  const imageRowType = state.schema.nodes.imageRow;
+  if (!imageRowType) return false;
+
+  // Case 1: Both in the same imageRow (reordering within the row)
+  if (isTargetInRow && isSrcInRow && $targetPos.before() === $srcPos.before()) {
+    const rowPos = $targetPos.before();
+    const rowNode = $targetPos.parent;
+    const images: PMNode[] = [];
+    rowNode.forEach((child, offset) => {
+      const childPos = rowPos + 1 + offset;
+      if (childPos !== srcPos) {
+        if (childPos === targetPos) {
+          if (side === 'left') {
+            images.push(normSrc);
+            images.push(child);
+          } else {
+            images.push(child);
+            images.push(normSrc);
+          }
+        } else {
+          images.push(child);
+        }
+      }
+    });
+    const newRow = imageRowType.create(null, images);
+    const tr = state.tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, newRow);
+    dispatch(tr);
+    view.focus();
+    return true;
+  }
+
+  // Case 2: Target is in an imageRow, src is from outside
+  if (isTargetInRow) {
+    const rowPos = $targetPos.before();
+    const rowNode = $targetPos.parent;
+    const images: PMNode[] = [];
+    rowNode.forEach((child, offset) => {
+      const childPos = rowPos + 1 + offset;
+      if (childPos === targetPos) {
+        if (side === 'left') {
+          images.push(normSrc);
+          images.push(child);
+        } else {
+          images.push(child);
+          images.push(normSrc);
+        }
+      } else {
+        images.push(child);
+      }
+    });
+
+    const newRow = imageRowType.create(null, images);
+    let tr = state.tr;
+    tr = tr.delete(srcPos, srcPos + srcNode.nodeSize);
+    const mappedRowPos = tr.mapping.map(rowPos);
+    tr = tr.replaceWith(mappedRowPos, mappedRowPos + rowNode.nodeSize, newRow);
+    dispatch(tr);
+    view.focus();
+    return true;
+  }
+
+  // Case 3: Target is standalone
+  const images = side === 'left' ? [normSrc, normTarget] : [normTarget, normSrc];
+  const newRow = imageRowType.create(null, images);
+
+  let tr = state.tr;
+  tr = tr.delete(srcPos, srcPos + srcNode.nodeSize);
+  const mappedTargetPos = tr.mapping.map(targetPos);
+  tr = tr.replaceWith(mappedTargetPos, mappedTargetPos + targetNode.nodeSize, newRow);
+  dispatch(tr);
+  view.focus();
+  return true;
+}
+
+export async function insertImageFilesNextTo(
+  view: EditorView,
+  files: File[],
+  targetPos: number,
+  side: 'left' | 'right'
+): Promise<boolean> {
+  const validFiles = files.filter(isImageFile);
+  if (!validFiles.length) return false;
+
+  const read = await Promise.allSettled(validFiles.map(readImageFile));
+  const newNodes = read.flatMap((r) =>
+    r.status === 'fulfilled'
+      ? [
+          view.state.schema.nodes.image.create({
+            ...r.value,
+            width: '100%',
+            alignment: 'center',
+            caption: '',
+          }),
+        ]
+      : []
+  );
+
+  if (!newNodes.length || view.isDestroyed) return false;
+
+  const { state, dispatch } = view;
+  const doc = state.doc;
+  const targetNode = doc.nodeAt(targetPos);
+  if (!targetNode || targetNode.type.name !== 'image') return false;
+
+  const $targetPos = doc.resolve(targetPos);
+  const isTargetInRow = $targetPos.parent.type.name === 'imageRow';
+  const imageRowType = state.schema.nodes.imageRow;
+  if (!imageRowType) return false;
+
+  const normTarget = targetNode.type.create({
+    ...targetNode.attrs,
+    width: '100%',
+    alignment: 'center',
+  });
+
+  if (isTargetInRow) {
+    const rowPos = $targetPos.before();
+    const rowNode = $targetPos.parent;
+    const images: PMNode[] = [];
+    rowNode.forEach((child, offset) => {
+      const childPos = rowPos + 1 + offset;
+      if (childPos === targetPos) {
+        if (side === 'left') {
+          images.push(...newNodes, child);
+        } else {
+          images.push(child, ...newNodes);
+        }
+      } else {
+        images.push(child);
+      }
+    });
+    const newRow = imageRowType.create(null, images);
+    const tr = state.tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, newRow);
+    dispatch(tr);
+    view.focus();
+    return true;
+  }
+
+  // Standalone target
+  const images = side === 'left' ? [...newNodes, normTarget] : [normTarget, ...newNodes];
+  const newRow = imageRowType.create(null, images);
+  const tr = state.tr.replaceWith(targetPos, targetPos + targetNode.nodeSize, newRow);
+  dispatch(tr);
+  view.focus();
+  return true;
+}
+
+export function separateImageRow(view: EditorView, imagePos: number): boolean {
+  const { state, dispatch } = view;
+  const $pos = state.doc.resolve(imagePos);
+  if ($pos.parent.type.name !== 'imageRow') return false;
+
+  const rowPos = $pos.before();
+  const rowNode = $pos.parent;
+
+  const children: PMNode[] = [];
+  rowNode.forEach((child) => {
+    children.push(
+      child.type.create({
+        ...child.attrs,
+        width: '100%',
+        alignment: 'center',
+      })
+    );
+  });
+
+  const tr = state.tr.replaceWith(rowPos, rowPos + rowNode.nodeSize, children);
+  dispatch(tr);
+  view.focus();
+  return true;
+}
 
 export const isImageFile = (file: File) => file.type.startsWith('image/');
 

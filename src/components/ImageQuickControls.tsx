@@ -14,6 +14,11 @@ import {
   ArrowUp,
   ArrowDown,
 } from 'lucide-react';
+import {
+  combineImagesSideBySide,
+  insertImageFilesNextTo,
+  separateImageRow,
+} from '../extensions/ImageUpload';
 
 interface ImageQuickControlsProps {
   editor: Editor | null;
@@ -26,14 +31,14 @@ function moveImageNode(editor: Editor, dir: 'up' | 'down') {
   let pos = -1;
   let node: PMNode | null = null;
 
-  if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
+  if (selection instanceof NodeSelection && (selection.node.type.name === 'image' || selection.node.type.name === 'imageRow')) {
     pos = selection.from;
     node = selection.node;
   } else {
     const $pos = selection.$from;
     for (let d = $pos.depth; d >= 0; d--) {
       const p = $pos.node(d);
-      if (p.type.name === 'image') {
+      if (p.type.name === 'image' || p.type.name === 'imageRow') {
         pos = $pos.before(d);
         node = p;
         break;
@@ -44,8 +49,15 @@ function moveImageNode(editor: Editor, dir: 'up' | 'down') {
   if (pos < 0 || !node) return false;
 
   const $pos = state.doc.resolve(pos);
-  const index = $pos.index();
-  const parent = $pos.parent;
+  // If moving an image that is inside an imageRow, move the entire imageRow
+  if (node.type.name === 'image' && $pos.parent.type.name === 'imageRow') {
+    pos = $pos.before();
+    node = $pos.parent;
+  }
+
+  const $resolved = state.doc.resolve(pos);
+  const index = $resolved.index();
+  const parent = $resolved.parent;
 
   if (dir === 'up') {
     if (index === 0) return false;
@@ -70,7 +82,6 @@ function moveImageNode(editor: Editor, dir: 'up' | 'down') {
 
 export const ImageQuickControls: React.FC<ImageQuickControlsProps> = ({
   editor,
-  brandPrimaryColor = '#FF4C00',
 }) => {
   if (!editor || !editor.isActive('image')) return null;
 
@@ -84,6 +95,35 @@ export const ImageQuickControls: React.FC<ImageQuickControlsProps> = ({
   useEffect(() => {
     setCaptionText(rawCaption);
   }, [rawCaption]);
+
+  // Determine current image node and if it is within an imageRow
+  const { selection } = editor.view.state;
+  let selectedPos = -1;
+  let selectedNode: PMNode | null = null;
+  if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
+    selectedPos = selection.from;
+    selectedNode = selection.node;
+  } else {
+    const $pos = selection.$from;
+    for (let d = $pos.depth; d >= 0; d--) {
+      const p = $pos.node(d);
+      if (p.type.name === 'image') {
+        selectedPos = $pos.before(d);
+        selectedNode = p;
+        break;
+      }
+    }
+  }
+
+  let isInRow = false;
+  if (selectedPos >= 0) {
+    try {
+      const $pos = editor.view.state.doc.resolve(selectedPos);
+      isInRow = $pos.parent.type.name === 'imageRow';
+    } catch {
+      isInRow = false;
+    }
+  }
 
   const handleSetWidth = (w: string) => {
     editor.chain().focus().updateAttributes('image', { width: w }).run();
@@ -99,23 +139,45 @@ export const ImageQuickControls: React.FC<ImageQuickControlsProps> = ({
     editor.chain().focus().updateAttributes('image', { alignment: align }).run();
   };
 
-  const handleTwoColumns = () => {
+  const handleToggleTwoColumns = () => {
+    if (selectedPos < 0 || !selectedNode) return;
     const { state } = editor.view;
-    const { selection } = state;
-    let targetAlign: 'left' | 'right' = 'left';
+    const $pos = state.doc.resolve(selectedPos);
 
-    if (selection instanceof NodeSelection && selection.node.type.name === 'image') {
-      const pos = selection.from;
-      const $pos = state.doc.resolve(pos);
-      const index = $pos.index();
-      const parent = $pos.parent;
-      if (index > 0 && parent.child(index - 1).type.name === 'image') {
-        const prevAlign = parent.child(index - 1).attrs.alignment;
-        targetAlign = prevAlign === 'left' ? 'right' : 'left';
-      }
+    if (isInRow) {
+      // Split / separate row back to individual stacked images
+      separateImageRow(editor.view, selectedPos);
+      return;
     }
 
-    editor.chain().focus().updateAttributes('image', { width: '48.5%', alignment: targetAlign }).run();
+    const index = $pos.index();
+    const parent = $pos.parent;
+
+    // Check next sibling
+    if (index + 1 < parent.childCount && parent.child(index + 1).type.name === 'image') {
+      const nextPos = selectedPos + selectedNode.nodeSize;
+      combineImagesSideBySide(editor.view, nextPos, selectedPos, 'right');
+      return;
+    }
+
+    // Check prev sibling
+    if (index > 0 && parent.child(index - 1).type.name === 'image') {
+      const prevPos = selectedPos - parent.child(index - 1).nodeSize;
+      combineImagesSideBySide(editor.view, prevPos, selectedPos, 'left');
+      return;
+    }
+
+    // Neither neighbor is an image -> Open file picker to choose an image to place side-by-side
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.onchange = () => {
+      const file = fileInput.files?.[0];
+      if (file) {
+        void insertImageFilesNextTo(editor.view, [file], selectedPos, 'right');
+      }
+    };
+    fileInput.click();
   };
 
   const handleCaptionChange = (val: string) => {
@@ -126,8 +188,6 @@ export const ImageQuickControls: React.FC<ImageQuickControlsProps> = ({
   const handleDelete = () => {
     editor.chain().focus().deleteSelection().run();
   };
-
-  const isTwoCol = width === '48.5%' || width === '50%';
 
   return (
     <div className="bg-[#1a1917] border-b border-[#2e2a24] px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-200 select-none shadow-md">
@@ -163,16 +223,20 @@ export const ImageQuickControls: React.FC<ImageQuickControlsProps> = ({
         {/* 2-Columns Side by Side Button */}
         <div className="flex items-center gap-1 pr-2 border-r border-[#2e2a24]">
           <button
-            onClick={handleTwoColumns}
-            title="Set to 2-Column Side-by-Side (Pairs with neighboring image)"
+            onClick={handleToggleTwoColumns}
+            title={
+              isInRow
+                ? 'Currently 2-column side-by-side. Click to separate back into single images.'
+                : 'Set to 2-Column Side-by-Side (Combines with neighbor or upload second image)'
+            }
             className={`px-2 py-1 rounded border flex items-center gap-1.5 text-[11px] font-medium transition ${
-              isTwoCol && alignment !== 'center'
+              isInRow
                 ? 'bg-[#FF4C00]/20 text-[#FF4C00] border-[#FF4C00]/40 font-semibold'
                 : 'bg-[#22201d] hover:bg-[#2c2925] text-stone-300 border-[#322f2a]'
             }`}
           >
-            <Columns2 className="w-3.5 h-3.5 text-[#FF4C00]" />
-            <span>2-Col Side by Side</span>
+            <Columns2 className={`w-3.5 h-3.5 ${isInRow ? 'text-[#FF4C00]' : 'text-stone-300'}`} />
+            <span>{isInRow ? '2-Col (Active - Click to Separate)' : '2-Col Side by Side'}</span>
           </button>
         </div>
 
@@ -181,81 +245,91 @@ export const ImageQuickControls: React.FC<ImageQuickControlsProps> = ({
           <span className="text-[10px] text-stone-400 font-semibold uppercase mr-0.5 hidden min-[1100px]:inline">
             Size:
           </span>
-          {[
-            { label: '25%', val: '25%' },
-            { label: '50%', val: '48.5%' },
-            { label: '75%', val: '75%' },
-            { label: '100%', val: '100%' },
-          ].map((item) => (
-            <button
-              key={item.label}
-              onClick={() => handleSetWidth(item.val)}
-              title={`Set width to ${item.label}`}
-              className={`px-2 py-1 rounded border text-[11px] font-medium transition ${
-                width === item.val || (item.label === '50%' && (width === '50%' || width === '48.5%'))
-                  ? 'bg-[#FF4C00]/20 text-[#FF4C00] border-[#FF4C00]/40 font-semibold'
-                  : 'bg-[#22201d] hover:bg-[#2c2925] text-stone-300 border-[#322f2a]'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-          <button
-            onClick={() => handleNudgeWidth(-5)}
-            title="Reduce width by 5%"
-            className="p-1 rounded bg-[#22201d] hover:bg-[#2c2925] text-stone-300 hover:text-white border border-[#322f2a] transition ml-0.5"
-          >
-            <Minus className="w-3 h-3" />
-          </button>
-          <span className="text-[11px] font-mono text-stone-300 px-1 min-w-[34px] text-center">{width}</span>
-          <button
-            onClick={() => handleNudgeWidth(5)}
-            title="Increase width by 5%"
-            className="p-1 rounded bg-[#22201d] hover:bg-[#2c2925] text-stone-300 hover:text-white border border-[#322f2a] transition"
-          >
-            <Plus className="w-3 h-3" />
-          </button>
+          {isInRow ? (
+            <span className="text-[11px] px-2 py-1 rounded bg-[#22201d] text-[#FF4C00] border border-[#322f2a] font-medium">
+              50% (2-Column)
+            </span>
+          ) : (
+            <>
+              {[
+                { label: '25%', val: '25%' },
+                { label: '50%', val: '50%' },
+                { label: '75%', val: '75%' },
+                { label: '100%', val: '100%' },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => handleSetWidth(item.val)}
+                  title={`Set width to ${item.label}`}
+                  className={`px-2 py-1 rounded border text-[11px] font-medium transition ${
+                    width === item.val
+                      ? 'bg-[#FF4C00]/20 text-[#FF4C00] border-[#FF4C00]/40 font-semibold'
+                      : 'bg-[#22201d] hover:bg-[#2c2925] text-stone-300 border-[#322f2a]'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <button
+                onClick={() => handleNudgeWidth(-5)}
+                title="Reduce width by 5%"
+                className="p-1 rounded bg-[#22201d] hover:bg-[#2c2925] text-stone-300 hover:text-white border border-[#322f2a] transition ml-0.5"
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="text-[11px] font-mono text-stone-300 px-1 min-w-[34px] text-center">{width}</span>
+              <button
+                onClick={() => handleNudgeWidth(5)}
+                title="Increase width by 5%"
+                className="p-1 rounded bg-[#22201d] hover:bg-[#2c2925] text-stone-300 hover:text-white border border-[#322f2a] transition"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </>
+          )}
         </div>
 
         {/* Alignment */}
-        <div className="flex items-center gap-1 pr-2 border-r border-[#2e2a24]">
-          <span className="text-[10px] text-stone-400 font-semibold uppercase mr-0.5 hidden min-[1100px]:inline">
-            Align:
-          </span>
-          <button
-            onClick={() => handleSetAlignment('left')}
-            title="Align Left (Left Column for Side-by-Side)"
-            className={`p-1.5 rounded border transition ${
-              alignment === 'left'
-                ? 'bg-[#FF4C00]/20 text-[#FF4C00] border-[#FF4C00]/40'
-                : 'bg-[#22201d] hover:bg-[#2c2925] text-stone-400 hover:text-white border-[#322f2a]'
-            }`}
-          >
-            <AlignLeft className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => handleSetAlignment('center')}
-            title="Align Center (Full width row)"
-            className={`p-1.5 rounded border transition ${
-              alignment === 'center'
-                ? 'bg-[#FF4C00]/20 text-[#FF4C00] border-[#FF4C00]/40'
-                : 'bg-[#22201d] hover:bg-[#2c2925] text-stone-400 hover:text-white border-[#322f2a]'
-            }`}
-          >
-            <AlignCenter className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => handleSetAlignment('right')}
-            title="Align Right (Right Column for Side-by-Side)"
-            className={`p-1.5 rounded border transition ${
-              alignment === 'right'
-                ? 'bg-[#FF4C00]/20 text-[#FF4C00] border-[#FF4C00]/40'
-                : 'bg-[#22201d] hover:bg-[#2c2925] text-stone-400 hover:text-white border-[#322f2a]'
-            }`}
-          >
-            <AlignRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        {!isInRow && (
+          <div className="flex items-center gap-1 pr-2 border-r border-[#2e2a24]">
+            <span className="text-[10px] text-stone-400 font-semibold uppercase mr-0.5 hidden min-[1100px]:inline">
+              Align:
+            </span>
+            <button
+              onClick={() => handleSetAlignment('left')}
+              title="Align Left"
+              className={`p-1.5 rounded border transition ${
+                alignment === 'left'
+                  ? 'bg-[#FF4C00]/20 text-[#FF4C00] border-[#FF4C00]/40'
+                  : 'bg-[#22201d] hover:bg-[#2c2925] text-stone-400 hover:text-white border-[#322f2a]'
+              }`}
+            >
+              <AlignLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleSetAlignment('center')}
+              title="Align Center"
+              className={`p-1.5 rounded border transition ${
+                alignment === 'center'
+                  ? 'bg-[#FF4C00]/20 text-[#FF4C00] border-[#FF4C00]/40'
+                  : 'bg-[#22201d] hover:bg-[#2c2925] text-stone-400 hover:text-white border-[#322f2a]'
+              }`}
+            >
+              <AlignCenter className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleSetAlignment('right')}
+              title="Align Right"
+              className={`p-1.5 rounded border transition ${
+                alignment === 'right'
+                  ? 'bg-[#FF4C00]/20 text-[#FF4C00] border-[#FF4C00]/40'
+                  : 'bg-[#22201d] hover:bg-[#2c2925] text-stone-400 hover:text-white border-[#322f2a]'
+              }`}
+            >
+              <AlignRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Description / Caption Input */}
         <div className="flex items-center gap-1.5">
