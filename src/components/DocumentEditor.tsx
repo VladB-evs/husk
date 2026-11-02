@@ -20,6 +20,7 @@ import { PAGE, buildDocumentCss, buildEditorChromeCss } from '../shared/document
 import { HuskDocument, MetadataField } from '../types';
 import { Toolbar } from './Toolbar';
 import { TableQuickControls } from './TableQuickControls';
+import { ImageQuickControls } from './ImageQuickControls';
 import { SignatureModal } from './SignatureModal';
 import { PenTool } from 'lucide-react';
 
@@ -210,6 +211,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       />
 
       <TableQuickControls editor={editor} brandPrimaryColor={doc.branding.primaryColor} />
+      <ImageQuickControls editor={editor} brandPrimaryColor={doc.branding.primaryColor} />
 
       {/* Page canvas: a stack of real A4 pages */}
       <div
