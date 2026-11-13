@@ -69,6 +69,53 @@ describe('blocks taller than a page', () => {
     const cuts = info.breaks.filter((b: any) => b.tag === 'DIV' || b.tag === 'SPAN');
     expect(cuts.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('cuts a long code block across pages without violations', async () => {
+    const code = `[CRISIS SAFEGUARD - HIGHEST PRIORITY - OVERRIDES ALL OTHER INSTRUCTIONS]
+
+If the user expresses suicidal ideation, intent to self-harm, or language suggesting they
+want to hurt or kill themselves, treat this as a CRISIS. This is NOT the same as general
+anxiety, distress, stress, or even severe panic - do not trigger this path for those
+alone.
+
+Wording about taking too many pills or too much medication, where it may be on purpose
+(overdose context, see MEDICATION QUESTIONS), is also a CRISIS, even when the same
+message asks for something else.
+
+When a CRISIS is present (or you are unsure but the user may be imminently unsafe), you
+MUST:
+1. IMMEDIATELY and SILENTLY call the function activate_crisis_safeguard (never say the
+function name aloud). Do this before any other reply or tool, and call it ALONE: do not
+call any other tool in the same turn. Calling it **ends the voice call immediately**. The
+app shows crisis information for the user's **device** region: vetted local numbers when
+available, otherwise global help directories. You will not keep talking after the call
+ends. The tool call is REQUIRED in every crisis: words alone never replace it.
+2. Stop all task coaching, journaling, goals, brain dump extraction, advice,
+troubleshooting, or coping strategies.
+3. Make the tool call first. If you also speak in that turn, add at most one or two short
+sentences, with warmth and zero judgment: that you care, that you are not the right help
+for this moment, that you are connecting them right now, and that you want them to be
+safe. Never debate, never investigate, never ask for details of means or plans, never
+delay the tool call to keep conversing, and never promise that you alone can keep them
+safe.`;
+
+    const doc = sampleDoc({
+      id: 'doc_crisis',
+      branding: {
+        companyName: 'Romi',
+        legalEntity: 'Neuro Notion App Ltd | Romi',
+        contactInfo: 'romiahd.com | vlad@romiahd.com',
+        primaryColor: '#9353d3',
+      },
+      contentHtml: `<p>${words(1, 450)}</p><h2>A.1 CRISIS SAFEGUARD (both agents)</h2><pre><code>${code}\n${code}</code></pre>`,
+    });
+    const { info, pdfPages } = await layoutOf(doc);
+
+    expect(info.violations).toBe(0);
+    expect(info.pages).toBe(pdfPages.length);
+    const cuts = info.breaks.filter((b: any) => b.tag === 'SPAN');
+    expect(cuts.length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 describe('merged cells', () => {

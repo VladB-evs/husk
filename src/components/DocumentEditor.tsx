@@ -420,11 +420,61 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               )}
             </div>
 
+            {/* Masks for top/bottom margins and page gaps so blocks (such as code blocks) that cross
+                pages never bleed their background color into the margins or the gap between pages. */}
+            {Array.from({ length: pages }, (_, k) => (
+              <React.Fragment key={`mask-${k}`}>
+                {/* Top margin mask (page 2 onwards) */}
+                {k > 0 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      zIndex: 2,
+                      left: 0,
+                      top: k * PITCH,
+                      width: PAGE.width,
+                      height: PAGE.marginTop,
+                      backgroundColor: '#ffffff',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+                {/* Bottom margin mask */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    zIndex: 2,
+                    left: 0,
+                    top: k * PITCH + PAGE.height - PAGE.marginBottom,
+                    width: PAGE.width,
+                    height: PAGE.marginBottom,
+                    backgroundColor: '#ffffff',
+                    pointerEvents: 'none',
+                  }}
+                />
+                {/* Visual gap mask between pages: clean dark background with soft shadows */}
+                {k < pages - 1 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      zIndex: 2,
+                      left: 0,
+                      top: k * PITCH + PAGE.height,
+                      width: PAGE.width,
+                      height: PAGE.gap,
+                      background: 'linear-gradient(to bottom, rgb(7,7,6), rgb(13,12,12) 50%, rgb(15,14,13))',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+              </React.Fragment>
+            ))}
+
             {/* The header sits in the top margin of every page */}
             {Array.from({ length: pages }, (_, k) => (
               <div
                 key={`header-${k}`}
-                style={{ position: 'absolute', zIndex: 2, left: PAGE.marginX, right: PAGE.marginX, top: k * PITCH }}
+                style={{ position: 'absolute', zIndex: 3, left: PAGE.marginX, right: PAGE.marginX, top: k * PITCH }}
                 dangerouslySetInnerHTML={{ __html: buildRunningHeaderHtml(doc.branding) }}
               />
             ))}
@@ -436,7 +486,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   key={k}
                   style={{
                     position: 'absolute',
-                    zIndex: 2,
+                    zIndex: 3,
                     left: PAGE.marginX,
                     right: PAGE.marginX,
                     top: k * PITCH + PAGE.height - PAGE.marginBottom + 12,
