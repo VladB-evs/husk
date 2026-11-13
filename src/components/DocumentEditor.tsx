@@ -13,6 +13,7 @@ import { CustomTable, CustomTableRow, CustomTableCell, CustomTableHeader, TableK
 import { Pagination, SIGNOFF_MARGIN } from '../extensions/Pagination';
 import { Autocorrect } from '../extensions/Autocorrect';
 import { HuskImage, HuskImageRow, ImageUpload, insertImageFiles, isImageFile } from '../extensions/ImageUpload';
+import { MarkdownPaste } from '../extensions/MarkdownPaste';
 import { addUserWord, loadSpellChecker } from '../utils/spell';
 import type { PaginationPlan } from '../extensions/Pagination';
 import { buildRunningHeaderHtml, footerLeftTextFor, footerSuffix } from '../shared/printDocument';
@@ -100,6 +101,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       HuskImageRow,
       HuskImage,
       ImageUpload,
+      MarkdownPaste,
       Autocorrect.configure({ isEnabled: () => autocorrectRef.current }),
       Placeholder.configure({ placeholder: 'Write your document sections, paragraphs, tables...' }),
       Pagination.configure({
